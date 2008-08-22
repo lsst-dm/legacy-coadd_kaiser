@@ -1,0 +1,5 @@
+# -*- python -*-
+Import("env")
+
+env.CheckSwig("python", ilang="c++", includedProducts="utils")
+env.LoadableModuleIncomplete("_kaiserLib", Split("kaiserLib.i"), LIBS=env.getlibs("coadd_kaiser"))

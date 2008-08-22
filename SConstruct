@@ -35,7 +35,7 @@ env.libs["coadd_kaiser"] += ["lapack"]     # bug in scons 1.16; getlibs("lapack"
 #
 # Build/install things
 #
-for d in Split("doc include/lsst/coadd/kaiser lib python/lsst/coadd/kaiser tests examples"):
+for d in Split("doc lib python/lsst/coadd/kaiser tests examples"):
     SConscript(os.path.join(d, "SConscript"))
 
 env['IgnoreFiles'] = r"(~$|\.pyc$|^\.svn$|\.o$)"

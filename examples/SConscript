@@ -2,6 +2,8 @@
 Import("env")
 import sys
 
+env.Program(["median.cc"], LIBS=env.getlibs("coadd_kaiser"))
+
 import lsst.tests
 
 dataDir = env.ProductDir("afwdata")
