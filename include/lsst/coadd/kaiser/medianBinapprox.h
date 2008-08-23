@@ -5,17 +5,17 @@
 *
 * @author Ryan J. Tibshirani, adapted from C to C++ by Russell Owen.
 */
-#include <valarray>
-#include <cmath>
+#include <iterator>
 
 namespace lsst {
 namespace coadd {
 namespace kaiser {
 
-template <class T>
-T medianBinapprox(
-    T const * const first,  ///< iterator to first element of array
-    T const * const last    ///< iterator to last+1 element of array
+template <class ForwardIterator>
+typename std::iterator_traits<ForwardIterator>::value_type medianBinapprox(
+    ForwardIterator first,
+    ForwardIterator last,
+    int nBins = 1000
 );
 
 }}} // lsst::coadd::kaiser

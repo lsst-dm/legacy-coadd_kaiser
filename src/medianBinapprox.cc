@@ -8,64 +8,67 @@
 #include <valarray>
 #include <stdexcept>
 
-#include "medianBinapprox.h"
-
-const int NBins = 1001;
+#include "lsst/coadd/kaiser/medianBinapprox.h"
 
 /**
 * @brief Compute the median using the binapprox algorithm.
 *
-* The accuracy is 1/1000th of a standard deviation (since the code uses 1000 bins).
+* The accuracy is 1/nBins of a standard deviation.
 *
 * Uses "binapprox", a fast algorithm that does not copy or rearrange the input data.
-*
 * The binapprox algorithm is described in Ryan J. Tibshirani's paper:
 * "Fast computation of the median by successive binning", Jue 23, 2008
 * <http://stat.stanford.edu/~ryantibs/median/medianpaper.pdf>
 *
-* @throw range_error if last <= first
+* @throw range_error if last <= first or nBins < 2
 *
 * @return approximate median
 */
-template <class T>
-T lsst::coadd::kaiser::medianBinapprox(
-    T const * const first,  ///< iterator to first element of array
-    T const * const last    ///< iterator to last+1 element of array
+template <class ForwardIterator>
+typename std::iterator_traits<ForwardIterator>::value_type lsst::coadd::kaiser::medianBinapprox(
+    ForwardIterator first,  ///< iterator to first element of array
+    ForwardIterator last,   ///< iterator to last+1 element of array
+    int nBins               ///< number of bins to use; 1000 is a typical value
 ) {
     if (first >= last) {
         throw std::range_error("last <= first");
+    } else if (nBins < 2) {
+        throw std::range_error("nBins < 2");
     }
+
+    typedef typename std::iterator_traits<ForwardIterator>::value_type ValueType;
 
     // Compute the number of elements (n), mean (mu) and standard deviation (sigma)
     long int n = 0;
-    T sum = 0;
-    for (T *it = first; it != last; ++it) {
+    double sum = 0;
+    for (ForwardIterator it = first; it != last; ++it) {
         n++;
-        sum += *it;
+        sum += static_cast<double>(*it);
     }
-    T mu = sum/static_cast<T>(n);
+    double mu = sum/static_cast<double>(n);
 
-    sum = 0;
-    for (T *it = first; it != last; ++it) {
-        sum += ((*it)-mu)*((*it)-mu);
+    double sumSq = 0;
+    for (ForwardIterator it = first; it != last; ++it) {
+        double val = static_cast<double>(*it) - mu;
+        sumSq += val * val;
     }
-    T sigma = std::sqrt(sum/static_cast<T>(n));
+    double sigma = std::sqrt(sumSq/static_cast<double>(n));
 
     // Bin data across the interval [mu-sigma, mu+sigma]
     int bottomcount = 0;
-    std::valarray<int> bincounts(NBins);
+    std::valarray<int> bincounts(nBins);
 
-    T scalefactor = (NBins-1)/(2*sigma);
-    T leftend =  mu-sigma;
-    T rightend = mu+sigma;
+    double scalefactor = static_cast<double>(nBins - 1)/(2.0 * sigma);
+    double leftend =  mu-sigma;
+    double rightend = mu+sigma;
     int bin;
 
-    for (T *it = first; it != last; ++it) {
-        if ((*it) < leftend) {
+    for (ForwardIterator it = first; it != last; ++it) {
+        double val = static_cast<double>(*it);
+        if (val < leftend) {
             bottomcount++;
-        }
-        else if ((*it) < rightend) {
-            bin = static_cast<int>(((*it)-leftend) * scalefactor);
+        } else if (val < rightend) {
+            bin = static_cast<int>((val -leftend) * scalefactor);
             bincounts[bin]++;
         }
     }
@@ -76,19 +79,19 @@ T lsst::coadd::kaiser::medianBinapprox(
         long int k = (n+1)/2;
         long int count = bottomcount;
 
-        for (int i = 0; i < NBins; i++) {
+        for (int i = 0; i < nBins; i++) {
             count += bincounts[i];
 
             if (count >= k) {
-                return (i+0.5)/scalefactor + leftend;
+                return static_cast<ValueType>((static_cast<double>(i) + 0.5)/scalefactor + leftend);
             }
         }
     } else {
         // n is even
-        long int k = n/2;
+        long int k = n / 2;
         long int count = bottomcount;
         
-        for (int i = 0; i < NBins; i++) {
+        for (int i = 0; i < nBins; i++) {
             count += bincounts[i];
             
             if (count >= k) {
@@ -97,7 +100,7 @@ T lsst::coadd::kaiser::medianBinapprox(
                     j++;
                     count += bincounts[j];
                 }
-                return static_cast<T>(i+j+1)/(2*scalefactor) + leftend;
+                return static_cast<ValueType>(static_cast<double>(i + j + 1)/(2.0 * scalefactor) + leftend);
             }
         }
     } 
