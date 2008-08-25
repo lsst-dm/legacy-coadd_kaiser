@@ -1,3 +1,6 @@
+// -*- LSST-C++ -*-
+#ifndef LSST_COADD_KAISER_MEDIANBINAPPROX_H
+#define LSST_COADD_KAISER_MEDIANBINAPPROX_H
 /**
 * @brief define medianBinapprox
 *
@@ -19,3 +22,9 @@ typename std::iterator_traits<ForwardIterator>::value_type medianBinapprox(
 );
 
 }}} // lsst::coadd::kaiser
+
+#ifndef SWIG // don't bother SWIG with .cc files
+#include "lsst/coadd/kaiser/medianBinapprox.cc"
+#endif
+
+#endif // !defined(LSST_COADD_KAISER_MEDIANBINAPPROX_H)

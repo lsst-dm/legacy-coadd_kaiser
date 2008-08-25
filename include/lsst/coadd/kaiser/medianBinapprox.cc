@@ -1,5 +1,7 @@
+// -*- LSST-C++ -*-
 /**
 * @brief Define medianBinapprox
+*
 * @file
 *
 * @author Ryan J. Tibshirani, adapted from C to C++ by Russell Owen.
@@ -7,8 +9,6 @@
 #include <cmath>
 #include <valarray>
 #include <stdexcept>
-
-#include "lsst/coadd/kaiser/medianBinapprox.h"
 
 /**
 * @brief Compute the median using the binapprox algorithm.

@@ -89,4 +89,4 @@ def version(HeadURL = r"$HeadURL: svn+ssh://svn.lsstcorp.org/DMS/afw/trunk/pytho
 %import "lsst/daf/data/LsstBase.h"
 %import "lsst/afw/image/Mask.h"
 
-%include "medianLib.i"
+// %include "medianLib.i"
