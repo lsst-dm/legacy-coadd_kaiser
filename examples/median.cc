@@ -11,4 +11,8 @@ int main() {
     }
     double med = lsst::coadd::kaiser::medianBinapprox(dataArr.begin(), dataArr.end());
     std::cout << "Median = " << med << "; expected value is 0.5" << std::endl;
+    
+    lsst::afw::image::Image<float> image(10, 10);
+    float imMed = lsst::coadd::kaiser::medianBinapprox(image);
+    std::cout << "Median = " << imMed << "; expected value is 0" << std::endl;
 }

@@ -59,17 +59,22 @@ typename std::iterator_traits<ForwardIterator>::value_type lsst::coadd::kaiser::
     std::valarray<int> bincounts(nBins);
 
     double scalefactor = static_cast<double>(nBins - 1)/(2.0 * sigma);
+    if (std::isinf(sigma)) {
+        // data are too closely spaced, just return mean
+        return static_cast<ValueType>(mu);
+    }
     double leftend =  mu-sigma;
-    double rightend = mu+sigma;
     int bin;
 
     for (ForwardIterator it = first; it != last; ++it) {
         double val = static_cast<double>(*it);
         if (val < leftend) {
             bottomcount++;
-        } else if (val < rightend) {
+        } else {
             bin = static_cast<int>((val -leftend) * scalefactor);
-            bincounts[bin]++;
+            if (bin < nBins) {
+                bincounts[bin]++;
+            }
         }
     }
 
@@ -103,5 +108,31 @@ typename std::iterator_traits<ForwardIterator>::value_type lsst::coadd::kaiser::
                 return static_cast<ValueType>(static_cast<double>(i + j + 1)/(2.0 * scalefactor) + leftend);
             }
         }
-    } 
+    }
+    throw std::logic_error("Unexpectedly failed to return a value");
 } 
+
+
+/**
+* @brief Compute the median of an lsst::afw::image::Image using the binapprox algorithm.
+*
+* The accuracy is 1/nBins of a standard deviation.
+*
+* Uses "binapprox", a fast algorithm that does not copy or rearrange the input data.
+* The binapprox algorithm is described in Ryan J. Tibshirani's paper:
+* "Fast computation of the median by successive binning", Jue 23, 2008
+* <http://stat.stanford.edu/~ryantibs/median/medianpaper.pdf>
+*
+* @throw range_error if no pixels or nBins < 2
+*
+* @return approximate median
+*/
+template <typename T>
+T lsst::coadd::kaiser::medianBinapprox(
+    lsst::afw::image::Image<T> const &image,   ///< image for which to compute median
+    int nBins       ///< number of bins to use; 1000 is a typical value
+) {
+    vw::PixelIterator<vw::ImageView<T> > first(*image.getIVwPtr());
+    vw::PixelIterator<vw::ImageView<T> > last(*image.getIVwPtr(), image.getCols()-1, image.getRows()-1);
+    return medianBinapprox(first, last, nBins);
+}
