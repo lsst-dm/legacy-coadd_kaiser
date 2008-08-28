@@ -41,7 +41,7 @@ namespace kaiser {
             double sigma2 = 0,  ///< sigma of second Gaussian
             double ampl2 = 0)   ///< amplitude of second Gaussian
         : 
-            Function2(2)
+            Function2(3)
         {
             this->_params[0] = sigma1;
             this->_params[1] = sigma2;

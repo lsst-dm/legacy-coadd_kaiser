@@ -25,24 +25,24 @@ int main(int argc, char **argv) {
         }
         
         // read in fits file
-        lsst::afw::image::MaskedImage<pixelType, lsst::afw::image::maskPixelType> mImage;
-        mImage.readFits(argv[1]);
+        lsst::afw::image::Exposure<pixelType, lsst::afw::image::maskPixelType> scienceExposure;
+        scienceExposure.readFits(argv[1]);
         
         // create psf kernel
         double sigma = fwhm / 2.35;
-        int kSize = static_cast<int>(2.0 * fwhm);
         lsst::coadd::kaiser::DoubleGaussianFunction2<double> psfFunc(sigma, sigma*10.0, 0.1);
+        int kSize = static_cast<int>(2.0 * fwhm);
         lsst::afw::math::AnalyticKernel psfKernel(psfFunc, kSize, kSize);
+        lsst::coadd::kaiser::CoaddComponent(scienceExposure, psfKernel);
         
-        lsst::coadd::kaiser::CoaddComponent(mImage, psfKernel);
+        std::cout << "Got CoaddComponent" << std::endl;
     }
 
-     //
-     // Check for memory leaks
-     //
-     if (lsst::daf::base::Citizen::census(0) != 0) {
-         std::cerr << "Leaked memory blocks:" << std::endl;
-         lsst::daf::base::Citizen::census(std::cerr);
-     }
-    
+    //
+    // Check for memory leaks
+    //
+    if (lsst::daf::base::Citizen::census(0) != 0) {
+        std::cerr << "Leaked memory blocks:" << std::endl;
+        lsst::daf::base::Citizen::census(std::cerr);
+    }
 }

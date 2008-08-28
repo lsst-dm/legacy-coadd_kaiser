@@ -1,6 +1,6 @@
 // -*- LSST-C++ -*-
-#ifndef LSST_COADD_KAISER_makeBlurredTemplate_H
-#define LSST_COADD_KAISER_makeBlurredTemplate_H
+#ifndef LSST_COADD_KAISER_MAKEBLURREDTEMPLATE_H
+#define LSST_COADD_KAISER_MAKEBLURREDTEMPLATE_H
 /**
 * @brief Component of Kaiser coadd
 *
@@ -10,6 +10,7 @@
 */
 #include <vector>
 
+#include "lsst/daf/data/LsstBase.h"
 #include "lsst/afw/image.h"
 #include "lsst/afw/math.h"
 
@@ -20,29 +21,31 @@ namespace kaiser {
     /**
     * @brief One component (processed Exposure) of a Kaiser coadd
     */
-    class CoaddComponent {
+    class CoaddComponent : public lsst::daf::data::LsstBase {
     public:
         typedef float pixelType;
-        typedef lsst::afw::image::MaskedImage<pixelType, lsst::afw::image::maskPixelType> Exposure;
+        typedef lsst::afw::image::Exposure<pixelType, lsst::afw::image::maskPixelType> Exposure;
+        typedef lsst::afw::image::MaskedImage<pixelType, lsst::afw::image::maskPixelType> MaskedImage;
 
         CoaddComponent();
         CoaddComponent(
             Exposure const &scienceExposure,
             lsst::afw::math::Kernel const &psfKernel
         );
-        
+        virtual ~CoaddComponent() {};
+
         void addToCoadd(Exposure &coadd);
         
         double getSigmaSq() { return _sigmaSq; }
 
         Exposure getBlurredExposure() { return _blurredExposure; }
         
-        lsst::afw::image::Image<pixelType> getBlurredPsf() { return _blurredPsf; };
+        lsst::afw::image::Image<pixelType> getBlurredPsfImage() { return _blurredPsfImage; };
         
     private:
         double _sigmaSq;
         Exposure _blurredExposure;
-        lsst::afw::image::Image<pixelType> _blurredPsf;
+        lsst::afw::image::Image<pixelType> _blurredPsfImage;
         
         void computeSigmaSq(
             Exposure const &scienceExposure
@@ -60,4 +63,4 @@ namespace kaiser {
 
 }}} // lsst::coadd::kaiser
 
-#endif // !defined(LSST_COADD_KAISER_makeBlurredTemplate_H)
+#endif // !defined(LSST_COADD_KAISER_MAKEBLURREDTEMPLATE_H)

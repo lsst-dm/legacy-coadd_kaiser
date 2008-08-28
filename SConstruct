@@ -29,7 +29,7 @@ env = scons.makeEnv(
         ["detection", "lsst/detection/Footprint.h", "detection"],
     ],
 )
-env.libs["coadd_kaiser"] = env.getlibs("boost vw lapack wcslib cfitsio utils daf_base pex_logging pex_exceptions pex_logging daf_persistence daf_data pex_policy minuit afw detection") + env.libs["coadd_kaiser"]
+env.libs["coadd_kaiser"] = env.getlibs("boost vw lapack wcslib cfitsio utils daf_base pex_logging security pex_exceptions pex_logging daf_persistence daf_data pex_policy minuit afw detection") + env.libs["coadd_kaiser"]
 env.libs["coadd_kaiser"] += ["lapack"]     # bug in scons 1.16; getlibs("lapack") fails as lapack isn't in eups
 
 #

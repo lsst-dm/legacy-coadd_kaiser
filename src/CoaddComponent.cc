@@ -13,18 +13,20 @@ void reflectImage(lsst::afw::image::Image<PixelType> &image);
 
 lsst::coadd::kaiser::CoaddComponent::CoaddComponent()
 :
+    LsstBase(typeid(this)),
     _sigmaSq(0),
     _blurredExposure(),
-    _blurredPsf()
+    _blurredPsfImage()
 {};
 
 lsst::coadd::kaiser::CoaddComponent::CoaddComponent(
     Exposure const &scienceExposure,   ///< science Exposure
     lsst::afw::math::Kernel const &psfKernel    ///< PSF of science Exposure
 ) :
+    LsstBase(typeid(this)),
     _sigmaSq(0),
     _blurredExposure(),
-    _blurredPsf()
+    _blurredPsfImage()
 {
     computeSigmaSq(scienceExposure);
 //    computeBlurredPsf();
@@ -34,20 +36,24 @@ lsst::coadd::kaiser::CoaddComponent::CoaddComponent(
 void lsst::coadd::kaiser::CoaddComponent::addToCoadd(Exposure &coadd) {
     throw std::runtime_error("Not implemented");
 };
+
         
 void lsst::coadd::kaiser::CoaddComponent::computeSigmaSq(Exposure const &scienceExposure) {
-    typedef lsst::afw::image::MaskedPixelAccessor<pixelType, lsst::afw::image::maskPixelType> ExposureAccessor;
+    typedef lsst::afw::image::MaskedPixelAccessor<pixelType, lsst::afw::image::maskPixelType> MaskedPixelAccessor;
 
-    std::vector<pixelType> varianceList(scienceExposure.getCols() * scienceExposure.getRows());
+    MaskedImage scienceMI(scienceExposure.getMaskedImage());
+    const unsigned int nCols(scienceMI.getCols());
+    const unsigned int nRows(scienceMI.getRows());
+    std::vector<pixelType> varianceList(nCols * nRows);
     std::vector<pixelType>::iterator varIter = varianceList.begin();
-    ExposureAccessor expRow(scienceExposure);
-    for (unsigned int row = 0; row < scienceExposure.getRows(); ++row, expRow.nextRow()) {
-        ExposureAccessor expCol = expRow;
-        for (unsigned int col = 0; col < scienceExposure.getCols(); ++col, expCol.nextCol()) {
-            if (*expCol.mask != 0) {
+    MaskedPixelAccessor miRow(scienceMI);
+    for (unsigned int row = 0; row < nRows; ++row, miRow.nextRow()) {
+        MaskedPixelAccessor miCol = miRow;
+        for (unsigned int col = 0; col < nCols; ++col, miCol.nextCol()) {
+            if (*miCol.mask != 0) {
                 continue;
             }
-            *varIter = *expCol.variance;
+            *varIter = *miCol.variance;
             ++varIter;
         }
     }
@@ -55,7 +61,7 @@ void lsst::coadd::kaiser::CoaddComponent::computeSigmaSq(Exposure const &science
 };
         
 /**
-* @brief Compute _blurredPsf = psfKernel convolved with psfKernel(-r)
+* @brief Compute _blurredPsfImage = psfKernel convolved with psfKernel(-r)
 */
 void lsst::coadd::kaiser::CoaddComponent::computeBlurredPsf(
     lsst::afw::math::Kernel const &psfKernel    ///< PSF kernel
@@ -74,8 +80,10 @@ void lsst::coadd::kaiser::CoaddComponent::computeBlurredExposure(
     lsst::afw::math::Kernel const &psfKernel    ///< PSF kernel
 ) {
     // getMaskPlane should be a static function, but meanwhile...
-    int edgeBit = scienceExposure.getMask()->getMaskPlane("EDGE");
-    _blurredExposure = lsst::afw::math::convolve(scienceExposure, psfKernel, edgeBit, false);
+    MaskedImage scienceMI(scienceExposure.getMaskedImage());
+    int edgeBit = scienceMI.getMask()->getMaskPlane("EDGE");
+    MaskedImage blurredMI(lsst::afw::math::convolve(scienceMI, psfKernel, edgeBit, false));
+    _blurredExposure = Exposure(blurredMI, scienceExposure.getWcs());
 };
 
 /**
