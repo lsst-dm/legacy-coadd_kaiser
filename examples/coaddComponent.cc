@@ -2,6 +2,7 @@
 
 #include "lsst/pex/logging/Trace.h"
 #include "lsst/afw/image.h"
+#include "lsst/afw/math.h"
 #include "lsst/coadd/kaiser.h"
 
 int main(int argc, char **argv) {
@@ -30,7 +31,7 @@ int main(int argc, char **argv) {
         
         // create psf kernel
         double sigma = fwhm / 2.35;
-        lsst::coadd::kaiser::DoubleGaussianFunction2<double> psfFunc(sigma, sigma*10.0, 0.1);
+        lsst::afw::math::DoubleGaussianFunction2<double> psfFunc(sigma, sigma*10.0, 0.1);
         int kSize = static_cast<int>(2.0 * fwhm);
         lsst::afw::math::AnalyticKernel psfKernel(psfFunc, kSize, kSize);
         lsst::coadd::kaiser::CoaddComponent(scienceExposure, psfKernel);
