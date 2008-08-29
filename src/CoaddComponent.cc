@@ -66,7 +66,24 @@ void lsst::coadd::kaiser::CoaddComponent::computeSigmaSq(Exposure const &science
 void lsst::coadd::kaiser::CoaddComponent::computeBlurredPsf(
     lsst::afw::math::Kernel const &psfKernel    ///< PSF kernel
 ) {
-    throw std::runtime_error("Not implemented");
+    unsigned int psfCols = psfKernel.getCols();
+    unsigned int psfRows = psfKernel.getRows();
+    unsigned int blurredPsfCols = 2 * psfCols - 1;
+    unsigned int blurredPsfRows = 2 * psfRows - 1;
+    // make image of psf, flip it in cols and rows, and zero-pad it
+    // use imagePtr because Image.replaceSubImage requires a ptr
+    lsst::afw::image::Image<double>::ImagePtrT reflPsfImagePtr(
+        new lsst::afw::image::Image<double>(psfCols, psfRows));
+    double dumImSum;
+    psfKernel.computeImage(*reflPsfImagePtr, dumImSum, true);
+    reflectImage(*reflPsfImagePtr);
+    lsst::afw::image::Image<double> paddedReflPsfImage(blurredPsfCols, blurredPsfRows);
+    vw::BBox2i centerBox(psfKernel.getCtrCol(), psfKernel.getCtrRow(), psfCols, psfRows);
+    paddedReflPsfImage.replaceSubImage(centerBox, reflPsfImagePtr);
+    
+    throw std::runtime_error("afw does not yet support convolution with an Image");
+    // convolve zero-padded reflected image of psf kernel with psf kernel
+//    _blurredPsfImage = lsst::afw::math::convolve(paddedReflPsfImage, psfKernel, true);
 };
 
 /**
@@ -91,12 +108,25 @@ void lsst::coadd::kaiser::CoaddComponent::computeBlurredExposure(
 */
 template<typename PixelType>
 void reflectImage(lsst::afw::image::Image<PixelType> &image) {
-    vw::PixelIterator<PixelType> front(*image.getVWPtr());
-    vw::PixelIterator<PixelType> back(*image.getVWPtr(), image.getCols()-1, image.getRows()-1);
-    unsigned long nToSwap = image.getCols() * image.getRows() / 2;
-    for (unsigned long i = 0; i < nToSwap; ++i, ++front, --back) {
-        PixelType temp = *front;
-        *front = *back;
-        *back = temp;
+    // this would be simpler with a proper STL iterator, but vw::PixelIterator is slow and read-only
+    const unsigned int nCols = image.getCols();
+    const unsigned int nRows = image.getRows();
+    vw::MemoryStridingPixelAccessor<PixelType> frontAcc(image.getIVwPtr()->origin());
+    vw::MemoryStridingPixelAccessor<PixelType> backAcc(image.getIVwPtr()->origin());
+    backAcc.advance(nCols - 1, nRows - 1);
+    unsigned int nColsToSwap = nCols;
+    const unsigned int nRowsToSwap = (nRows + 1) / 2;
+    const bool oddNRows = (nRows % 2 != 0);
+    for (unsigned int row = 0; row < nRowsToSwap; ++row) {
+        PixelType *frontPtr = &(*frontAcc);
+        PixelType *backPtr = &(*backAcc);
+        if (oddNRows && (row == nRowsToSwap - 1)) {
+            nColsToSwap = nCols / 2;
+        }
+        for (unsigned int col = 0; col < nColsToSwap; ++col) {
+            PixelType temp = *frontPtr;
+            *frontPtr = *backPtr;
+            *backPtr = temp;
+        }
     }
 }
