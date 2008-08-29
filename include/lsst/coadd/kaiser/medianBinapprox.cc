@@ -123,12 +123,15 @@ typename std::iterator_traits<ForwardIterator>::value_type lsst::coadd::kaiser::
 * "Fast computation of the median by successive binning", Jue 23, 2008
 * <http://stat.stanford.edu/~ryantibs/median/medianpaper.pdf>
 *
+* @note the name is different than medianBinapprox to avoid confusing SWIG;
+* See the comments in kaiserLib.i for details.
+*
 * @throw range_error if no pixels or nBins < 2
 *
 * @return approximate median
 */
 template <typename T>
-T lsst::coadd::kaiser::medianBinapprox(
+T lsst::coadd::kaiser::medianBinapproxImage(
     lsst::afw::image::Image<T> const &image,   ///< image for which to compute median
     int nBins       ///< number of bins to use; 1000 is a typical value
 ) {

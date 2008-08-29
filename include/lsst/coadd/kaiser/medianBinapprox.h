@@ -23,17 +23,15 @@ namespace lsst {
 namespace coadd {
 namespace kaiser {
 
-#ifndef SWIG // don't wrap STL version in Python
 template <class ForwardIterator>
 typename std::iterator_traits<ForwardIterator>::value_type medianBinapprox(
     ForwardIterator first,
     ForwardIterator last,
     int nBins = 1000
 );
-#endif
 
 template <typename T>
-T medianBinapprox(
+T medianBinapproxImage(
     lsst::afw::image::Image<T> const &image,
     int nBins = 1000
 );

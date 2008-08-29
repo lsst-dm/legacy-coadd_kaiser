@@ -1,5 +1,7 @@
 # -*- python -*-
 Import("env")
 
-env.CheckSwig("python", ilang="c++", includedProducts="utils")
+# includedProducts lists packages with included .i files
+env.CheckSwig("python", ilang="c++", includedProducts="utils afw detection")
+
 env.LoadableModuleIncomplete("_kaiserLib", Split("kaiserLib.i"), LIBS=env.getlibs("coadd_kaiser"))

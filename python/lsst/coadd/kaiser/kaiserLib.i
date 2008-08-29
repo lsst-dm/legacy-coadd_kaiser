@@ -16,44 +16,26 @@ Python interface to lsst::coadd::kaiser functions and classes
 //#pragma SWIG nowarn=389                 // operator[] ignored
 //#pragma SWIG nowarn=503                 // Can't wrap 'operator unspecified_bool_type'
 
-// define basic vectors
-// these are used by Kernel and Function (and possibly other code)
-%include "std_vector.i"
-%template(vectorF) std::vector<float>;
-%template(vectorD) std::vector<double>;
-//%template(vectorVectorF) std::vector<std::vector<float> >;
-//%template(vectorVectorD) std::vector<std::vector<double> >;
-
+// Everything we will need in the _wrap.cc file
 %{
-#   include <fstream>
-#   include <exception>
-#   include <map>
-#   include <boost/cstdint.hpp>
-#   include <boost/static_assert.hpp>
-#   include <boost/shared_ptr.hpp>
-#   include <boost/any.hpp>
-#   include <boost/array.hpp>
-#   include "lsst/utils/Utils.h"
-#   include "lsst/daf/base.h"
-#   include "lsst/pex/logging/Trace.h"
-#   include "lsst/afw/image.h"
-#   include "lsst/afw/math.h"
+#include "lsst/coadd/kaiser.h"
 %}
 
 %init %{
 %}
 
-%inline %{
-namespace lsst { namespace afw { namespace image { } } }
-//namespace lsst { namespace daf { namespace data { } } }
-//namespace vw {}
-    
-using namespace lsst::afw::image;
-//using namespace lsst::daf::data;
-//using namespace vw;
-%}
+//namespace boost {
+//    class bad_any_cast; // remove warning: Nothing known about 'boost::bad_any_cast'
+//}
 
-%include "lsst/p_lsstSwig.i"
+// Everything whose bindings we will have to know about
+%include "lsst/p_lsstSwig.i"    // this needs to go first otherwise i do not know about e.g. boost
+%include "lsst/afw/image/lsstImageTypes.i"  // vw and Image/Mask types and typedefs
+
+// handle C++ arguments that should be outputs in python
+%apply int& OUTPUT { int& };
+%apply float& OUTPUT { float& };
+%apply double& OUTPUT { double& };
 
 %pythoncode %{
 #import lsst.daf.data
@@ -62,31 +44,33 @@ import lsst.utils
 def version(HeadURL = r"$HeadURL: svn+ssh://svn.lsstcorp.org/DMS/afw/trunk/python/lsst/coadd/kaiser/kaiserLib.i $"):
     """Return a version given a HeadURL string. If a different version is setup, return that too"""
 
-    version_svn = lsst.utils.guessSvnVersion(HeadURL)
-
-    try:
-        import eups
-    except ImportError:
-        return version_svn
-    else:
-        try:
-            version_eups = eups.setup("afw")
-        except AttributeError:
-            return version_svn
-
-    if version_eups == version_svn:
-        return version_svn
-    else:
-        return "%s (setup: %s)" % (version_svn, version_eups)
+    """Return a version given a HeadURL string"""
+    return guessSvnVersion(HeadURL)
 
 %}
 
-%import "lsst/daf/base/Citizen.h"
-%import "lsst/daf/base/Persistable.h"
-%import "lsst/daf/base/DataProperty.h"
-%import "lsst/daf/data/LsstData.h"
-%import "lsst/daf/data/LsstImpl_DC3.h"
-%import "lsst/daf/data/LsstBase.h"
-%import "lsst/afw/image/Mask.h"
+%ignore lsst::coadd::kaiser::medianBinapprox;
+%include "lsst/coadd/kaiser/medianBinapprox.h"
+%template(medianBinapproxImage)  lsst::coadd::kaiser::medianBinapproxImage<float>;
 
-%include "medianLib.i"
+/*
+// If both medianBinapprox functions have the same name then the following fails with:
+//   /usr/include/c++/4.0.0/bits/stl_iterator_base_types.h:129: error: 'float' is not a class, struct, or union type
+//   /usr/include/c++/4.0.0/bits/stl_iterator_base_types.h:130: error: 'float' is not a class, struct, or union type
+%include "lsst/coadd/kaiser/medianBinapprox.h"
+%template(medianBinapprox)  lsst::coadd::kaiser::medianBinapprox<float>;
+
+// and this alternate approach fails in exactly the same way:
+namespace lsst {
+namespace coadd {
+namespace kaiser {
+    template <typename T>
+    T medianBinapprox(
+        lsst::afw::image::Image<T> const &image,
+        int nBins = 1000
+    );
+}}} // lsst::coadd::kaiser
+%template(medianBinapprox)  lsst::coadd::kaiser::medianBinapprox<float>;
+*/
+
+%include "lsst/coadd/kaiser/CoaddComponent.h"
