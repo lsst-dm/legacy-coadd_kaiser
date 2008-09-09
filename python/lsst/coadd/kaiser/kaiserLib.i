@@ -19,6 +19,7 @@ Python interface to lsst::coadd::kaiser functions and classes
 // Everything we will need in the _wrap.cc file
 %{
 #include "lsst/coadd/kaiser.h"
+#include "boost/cstdint.hpp"
 %}
 
 %init %{
@@ -38,7 +39,6 @@ Python interface to lsst::coadd::kaiser functions and classes
 %apply double& OUTPUT { double& };
 
 %pythoncode %{
-#import lsst.daf.data
 import lsst.utils
 
 def version(HeadURL = r"$HeadURL: svn+ssh://svn.lsstcorp.org/DMS/afw/trunk/python/lsst/coadd/kaiser/kaiserLib.i $"):
@@ -72,5 +72,11 @@ namespace kaiser {
 }}} // lsst::coadd::kaiser
 %template(medianBinapprox)  lsst::coadd::kaiser::medianBinapprox<float>;
 */
+
+%include "lsst/coadd/kaiser/addToMaskedImage.h"
+%template(addToMaskedImage) lsst::coadd::kaiser::addToMaskedImage<double, lsst::afw::image::maskPixelType>;
+%template(addToMaskedImage) lsst::coadd::kaiser::addToMaskedImage<float, lsst::afw::image::maskPixelType>;
+%template(addToMaskedImage) lsst::coadd::kaiser::addToMaskedImage<int, lsst::afw::image::maskPixelType>;
+%template(addToMaskedImage) lsst::coadd::kaiser::addToMaskedImage<boost::uint16_t, lsst::afw::image::maskPixelType>;
 
 %include "lsst/coadd/kaiser/CoaddComponent.h"

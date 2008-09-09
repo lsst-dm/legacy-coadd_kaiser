@@ -46,6 +46,9 @@ typename std::iterator_traits<ForwardIterator>::value_type lsst::coadd::kaiser::
         sum += static_cast<double>(*it);
     }
     double mu = sum/static_cast<double>(n);
+    if (n < 3) {
+        return static_cast<ValueType>(mu);
+    }
 
     double sumSq = 0;
     for (ForwardIterator it = first; it != last; ++it) {

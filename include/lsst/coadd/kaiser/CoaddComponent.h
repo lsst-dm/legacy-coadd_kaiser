@@ -19,36 +19,39 @@ namespace coadd {
 namespace kaiser {
     
     /**
-    * @brief One component (processed Exposure) of a Kaiser coadd
-    */
+     * @brief One component (processed ExposureD) of a Kaiser coadd
+     *
+     * @ingroup coadd::kaiser
+     */
     class CoaddComponent : public lsst::daf::data::LsstBase {
     public:
-        typedef float pixelType;
-        typedef lsst::afw::image::Exposure<pixelType, lsst::afw::image::maskPixelType> Exposure;
-        typedef lsst::afw::image::MaskedImage<pixelType, lsst::afw::image::maskPixelType> MaskedImage;
+        typedef double pixelType; // pixel type for blurred science exposure
+        typedef lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> ExposureF;
+        typedef lsst::afw::image::MaskedImage<float, lsst::afw::image::maskPixelType> MaskedImageF;
+        typedef lsst::afw::image::Exposure<pixelType, lsst::afw::image::maskPixelType> ExposureD;
+        typedef lsst::afw::image::MaskedImage<pixelType, lsst::afw::image::maskPixelType> MaskedImageD;
 
-        CoaddComponent();
         CoaddComponent(
-            Exposure const &scienceExposure,
+            ExposureF const &scienceExposure,
             lsst::afw::math::Kernel const &psfKernel
         );
         virtual ~CoaddComponent() {};
 
-        void addToCoadd(Exposure &coadd);
+        void addToCoadd(ExposureD &coadd);
         
         double getSigmaSq() { return _sigmaSq; }
 
-        Exposure getBlurredExposure() { return _blurredExposure; }
+        ExposureD getBlurredExposure() { return _blurredExposure; }
         
-        lsst::afw::image::Image<pixelType> getBlurredPsfImage() { return _blurredPsfImage; };
+        lsst::afw::image::Image<double> getBlurredPsfImage() { return _blurredPsfImage; };
         
     private:
         double _sigmaSq;
-        Exposure _blurredExposure;
-        lsst::afw::image::Image<pixelType> _blurredPsfImage;
+        ExposureD _blurredExposure;
+        lsst::afw::image::Image<double> _blurredPsfImage;
         
         void computeSigmaSq(
-            Exposure const &scienceExposure
+            ExposureF const &scienceExposure
         );
         
         void computeBlurredPsf(
@@ -56,7 +59,7 @@ namespace kaiser {
         );
 
         void computeBlurredExposure(
-            Exposure const &scienceExposure,
+            ExposureF const &scienceExposure,
             lsst::afw::math::Kernel const &psfKernel
         );
     };

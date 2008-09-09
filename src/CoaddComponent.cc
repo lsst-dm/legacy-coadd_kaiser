@@ -11,44 +11,55 @@
 template<typename PixelType>
 void reflectImage(lsst::afw::image::Image<PixelType> &image);
 
-lsst::coadd::kaiser::CoaddComponent::CoaddComponent()
-:
-    LsstBase(typeid(this)),
-    _sigmaSq(0),
-    _blurredExposure(),
-    _blurredPsfImage()
-{};
+namespace afwMath = lsst::afw::math;
+namespace afwImage = lsst::afw::image;
 
+/**
+ * @brief CoaddComponent constructor
+ *
+ * @todo: decide if we want to support spatially varying kernels. If we want both that
+ * and scienceExposure to be convolved with the *reflected* PSF then we some significant work to do;
+ * it will probably require new convolution functions. For now, for expediency, I allow spatially
+ * varying kernel but do not convolve with the reflected PSF.
+ *
+ * @ingroup coadd::kaiser
+ */ 
 lsst::coadd::kaiser::CoaddComponent::CoaddComponent(
-    Exposure const &scienceExposure,   ///< science Exposure
-    lsst::afw::math::Kernel const &psfKernel    ///< PSF of science Exposure
+    ExposureF const &scienceExposure,   ///< science ExposureD
+    afwMath::Kernel const &psfKernel    ///< PSF of science ExposureD
 ) :
     LsstBase(typeid(this)),
     _sigmaSq(0),
-    _blurredExposure(),
-    _blurredPsfImage()
+    _blurredExposure(scienceExposure.getMaskedImage().getCols(), scienceExposure.getMaskedImage().getRows()),
+    _blurredPsfImage(psfKernel.getCols() * 2 - 1, psfKernel.getRows() * 2 - 1)
 {
     computeSigmaSq(scienceExposure);
 //    computeBlurredPsf();
     computeBlurredExposure(scienceExposure, psfKernel);
 };
         
-void lsst::coadd::kaiser::CoaddComponent::addToCoadd(Exposure &coadd) {
+void lsst::coadd::kaiser::CoaddComponent::addToCoadd(ExposureD &coadd) {
     throw std::runtime_error("Not implemented");
 };
 
-        
-void lsst::coadd::kaiser::CoaddComponent::computeSigmaSq(Exposure const &scienceExposure) {
-    typedef lsst::afw::image::MaskedPixelAccessor<pixelType, lsst::afw::image::maskPixelType> MaskedPixelAccessor;
+/**
+ * @brief compute _sigmaSq
+ *
+ * @ingroup coadd::kaiser
+ */
+void lsst::coadd::kaiser::CoaddComponent::computeSigmaSq(
+    ExposureF const &scienceExposure    ///< science ExposureD
+) {
+    typedef afwImage::MaskedPixelAccessor<float, afwImage::maskPixelType> MaskedPixelAccessorF;
 
-    MaskedImage scienceMI(scienceExposure.getMaskedImage());
+    MaskedImageF scienceMI(scienceExposure.getMaskedImage());
     const unsigned int nCols(scienceMI.getCols());
     const unsigned int nRows(scienceMI.getRows());
-    std::vector<pixelType> varianceList(nCols * nRows);
-    std::vector<pixelType>::iterator varIter = varianceList.begin();
-    MaskedPixelAccessor miRow(scienceMI);
+    std::vector<double> varianceList(nCols * nRows);
+    std::vector<double>::iterator varIter = varianceList.begin();
+    MaskedPixelAccessorF miRow(scienceMI);
     for (unsigned int row = 0; row < nRows; ++row, miRow.nextRow()) {
-        MaskedPixelAccessor miCol = miRow;
+        MaskedPixelAccessorF miCol = miRow;
         for (unsigned int col = 0; col < nCols; ++col, miCol.nextCol()) {
             if (*miCol.mask != 0) {
                 continue;
@@ -61,10 +72,12 @@ void lsst::coadd::kaiser::CoaddComponent::computeSigmaSq(Exposure const &science
 };
         
 /**
-* @brief Compute _blurredPsfImage = psfKernel convolved with psfKernel(-r)
-*/
+ * @brief Compute _blurredPsfImage = psfKernel convolved with psfKernel(-r)
+ *
+ * @ingroup coadd::kaiser
+ */
 void lsst::coadd::kaiser::CoaddComponent::computeBlurredPsf(
-    lsst::afw::math::Kernel const &psfKernel    ///< PSF kernel
+    afwMath::Kernel const &psfKernel    ///< PSF kernel
 ) {
     unsigned int psfCols = psfKernel.getCols();
     unsigned int psfRows = psfKernel.getRows();
@@ -72,42 +85,46 @@ void lsst::coadd::kaiser::CoaddComponent::computeBlurredPsf(
     unsigned int blurredPsfRows = 2 * psfRows - 1;
     // make image of psf, flip it in cols and rows, and zero-pad it
     // use imagePtr because Image.replaceSubImage requires a ptr
-    lsst::afw::image::Image<double>::ImagePtrT reflPsfImagePtr(
-        new lsst::afw::image::Image<double>(psfCols, psfRows));
+    afwImage::Image<double>::ImagePtrT reflPsfImagePtr(
+        new afwImage::Image<double>(psfCols, psfRows));
     double dumImSum;
     psfKernel.computeImage(*reflPsfImagePtr, dumImSum, true);
     reflectImage(*reflPsfImagePtr);
-    lsst::afw::image::Image<double> paddedReflPsfImage(blurredPsfCols, blurredPsfRows);
+    afwImage::Image<double> paddedReflPsfImage(blurredPsfCols, blurredPsfRows);
     vw::BBox2i centerBox(psfKernel.getCtrCol(), psfKernel.getCtrRow(), psfCols, psfRows);
     paddedReflPsfImage.replaceSubImage(centerBox, reflPsfImagePtr);
     
-    throw std::runtime_error("afw does not yet support convolution with an Image");
     // convolve zero-padded reflected image of psf kernel with psf kernel
-//    _blurredPsfImage = lsst::afw::math::convolve(paddedReflPsfImage, psfKernel, true);
+    afwMath::convolve(_blurredPsfImage, paddedReflPsfImage, psfKernel, true);
 };
 
 /**
-* @brief Compute _blurredEposure = scienceExposure convolved with psfKernel
-*
-* Warning: if you want scienceExposure convolved with psfKernel(-r)
-* (the standard Kaiser thing to do) then feed in psfKernel(-r)
-*/
+ * @brief Compute _blurredEposure = scienceExposure convolved with psfKernel
+ *
+ * @warning If you want scienceExposure convolved with psfKernel(-r)
+ * (the standard Kaiser thing to do) then feed in psfKernel(-r)
+ *
+ * @ingroup coadd::kaiser
+ */
 void lsst::coadd::kaiser::CoaddComponent::computeBlurredExposure(
-    Exposure const &scienceExposure,    ///< science exposure
-    lsst::afw::math::Kernel const &psfKernel    ///< PSF kernel
+    ExposureF const &scienceExposure,   ///< science exposure
+    afwMath::Kernel const &psfKernel    ///< PSF kernel
 ) {
     // getMaskPlane should be a static function, but meanwhile...
-    MaskedImage scienceMI(scienceExposure.getMaskedImage());
+    MaskedImageF scienceMI(scienceExposure.getMaskedImage());
     int edgeBit = scienceMI.getMask()->getMaskPlane("EDGE");
-    MaskedImage blurredMI(lsst::afw::math::convolve(scienceMI, psfKernel, edgeBit, false));
-    _blurredExposure = Exposure(blurredMI, scienceExposure.getWcs());
+    MaskedImageD blurredMI = _blurredExposure.getMaskedImage();
+    afwMath::convolve(blurredMI, scienceMI, psfKernel, edgeBit, false);
+    _blurredExposure.setWcs(scienceExposure.getWcs());
 };
 
 /**
-* @brief reflect an image in-place
-*/
+ * @brief reflect an image in-place
+ *
+ * @ingroup coadd::kaiser
+ */
 template<typename PixelType>
-void reflectImage(lsst::afw::image::Image<PixelType> &image) {
+void reflectImage(afwImage::Image<PixelType> &image) {
     // this would be simpler with a proper STL iterator, but vw::PixelIterator is slow and read-only
     const unsigned int nCols = image.getCols();
     const unsigned int nRows = image.getRows();
