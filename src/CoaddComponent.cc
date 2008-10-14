@@ -6,11 +6,13 @@
 *
 * @author Russell Owen
 */
+#include "lsst/pex/exceptions.h"
 #include "lsst/coadd/kaiser.h"
 
 template<typename PixelType>
 void reflectImage(lsst::afw::image::Image<PixelType> &image);
 
+namespace pexExcept = lsst::pex::exceptions;
 namespace afwMath = lsst::afw::math;
 namespace afwImage = lsst::afw::image;
 
@@ -25,8 +27,8 @@ namespace afwImage = lsst::afw::image;
  * @ingroup coadd::kaiser
  */ 
 lsst::coadd::kaiser::CoaddComponent::CoaddComponent(
-    ExposureF const &scienceExposure,   ///< science ExposureD
-    afwMath::Kernel const &psfKernel    ///< PSF of science ExposureD
+    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &scienceExposure,   ///< science Exposure
+    afwMath::Kernel const &psfKernel    ///< PSF of science Exposure
 ) :
     LsstBase(typeid(this)),
     _sigmaSq(0),
@@ -38,8 +40,8 @@ lsst::coadd::kaiser::CoaddComponent::CoaddComponent(
     computeBlurredExposure(scienceExposure, psfKernel);
 };
         
-void lsst::coadd::kaiser::CoaddComponent::addToCoadd(ExposureD &coadd) {
-    throw std::runtime_error("Not implemented");
+void lsst::coadd::kaiser::CoaddComponent::addToCoadd(lsst::afw::image::Exposure<pixelType, lsst::afw::image::maskPixelType> &coadd) {
+    throw pexExcept::Runtime("Not implemented");
 };
 
 /**
@@ -48,11 +50,11 @@ void lsst::coadd::kaiser::CoaddComponent::addToCoadd(ExposureD &coadd) {
  * @ingroup coadd::kaiser
  */
 void lsst::coadd::kaiser::CoaddComponent::computeSigmaSq(
-    ExposureF const &scienceExposure    ///< science ExposureD
+    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &scienceExposure    ///< science Exposure
 ) {
     typedef afwImage::MaskedPixelAccessor<float, afwImage::maskPixelType> MaskedPixelAccessorF;
 
-    MaskedImageF scienceMI(scienceExposure.getMaskedImage());
+    lsst::afw::image::MaskedImage<float, lsst::afw::image::maskPixelType> scienceMI(scienceExposure.getMaskedImage());
     const unsigned int nCols(scienceMI.getCols());
     const unsigned int nRows(scienceMI.getRows());
     std::vector<double> varianceList(nCols * nRows);
@@ -83,16 +85,13 @@ void lsst::coadd::kaiser::CoaddComponent::computeBlurredPsf(
     unsigned int psfRows = psfKernel.getRows();
     unsigned int blurredPsfCols = 2 * psfCols - 1;
     unsigned int blurredPsfRows = 2 * psfRows - 1;
-    // make image of psf, flip it in cols and rows, and zero-pad it
-    // use imagePtr because Image.replaceSubImage requires a ptr
-    afwImage::Image<double>::ImagePtrT reflPsfImagePtr(
-        new afwImage::Image<double>(psfCols, psfRows));
+    afwImage::Image<double> reflPsfImage(psfCols, psfRows);
     double dumImSum;
-    psfKernel.computeImage(*reflPsfImagePtr, dumImSum, true);
-    reflectImage(*reflPsfImagePtr);
+    psfKernel.computeImage(reflPsfImage, dumImSum, true);
+    reflectImage(reflPsfImage);
     afwImage::Image<double> paddedReflPsfImage(blurredPsfCols, blurredPsfRows);
     vw::BBox2i centerBox(psfKernel.getCtrCol(), psfKernel.getCtrRow(), psfCols, psfRows);
-    paddedReflPsfImage.replaceSubImage(centerBox, reflPsfImagePtr);
+    paddedReflPsfImage.replaceSubImage(centerBox, reflPsfImage);
     
     // convolve zero-padded reflected image of psf kernel with psf kernel
     afwMath::convolve(_blurredPsfImage, paddedReflPsfImage, psfKernel, true);
@@ -107,13 +106,13 @@ void lsst::coadd::kaiser::CoaddComponent::computeBlurredPsf(
  * @ingroup coadd::kaiser
  */
 void lsst::coadd::kaiser::CoaddComponent::computeBlurredExposure(
-    ExposureF const &scienceExposure,   ///< science exposure
+    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &scienceExposure,   ///< science exposure
     afwMath::Kernel const &psfKernel    ///< PSF kernel
 ) {
     // getMaskPlane should be a static function, but meanwhile...
-    MaskedImageF scienceMI(scienceExposure.getMaskedImage());
+    lsst::afw::image::MaskedImage<float, lsst::afw::image::maskPixelType> scienceMI(scienceExposure.getMaskedImage());
     int edgeBit = scienceMI.getMask()->getMaskPlane("EDGE");
-    MaskedImageD blurredMI = _blurredExposure.getMaskedImage();
+    lsst::afw::image::MaskedImage<pixelType, lsst::afw::image::maskPixelType> blurredMI = _blurredExposure.getMaskedImage();
     afwMath::convolve(blurredMI, scienceMI, psfKernel, edgeBit, false);
     _blurredExposure.setWcs(scienceExposure.getWcs());
 };

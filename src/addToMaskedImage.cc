@@ -8,18 +8,19 @@
 *
 * @todo: move to a better location
 */
-#include <stdexcept>
-
 #include "boost/cstdint.hpp"
 
+#include "lsst/coadd/kaiser.h"
 #include "lsst/coadd/kaiser/addToMaskedImage.h"
+
+namespace pexExcept = lsst::pex::exceptions;
 
 /**
 * @brief add good pixels from one MaskedImage to another MaskedImage
 *
 * @todo: move to a better location (afw?)
 *
-* @throw std::invalid_argument if the image sizes do not match.
+* @throw pexExcept::InvalidParameter if the image sizes do not match.
 */
 template <typename ImagePixelT, typename MaskPixelT>
 void lsst::coadd::kaiser::addToMaskedImage(
@@ -33,7 +34,7 @@ void lsst::coadd::kaiser::addToMaskedImage(
     const unsigned int nRows = inMaskedImage.getRows();
     if ((nCols != outMaskedImage.getCols()) ||
         (nRows != outMaskedImage.getRows())) {
-        throw std::invalid_argument("MaskedImage sizes do not match");
+        throw pexExcept::InvalidParameter("MaskedImage sizes do not match");
     }
 
     lsst::afw::image::MaskedPixelAccessor<ImagePixelT, MaskPixelT> inRowAcc(inMaskedImage);

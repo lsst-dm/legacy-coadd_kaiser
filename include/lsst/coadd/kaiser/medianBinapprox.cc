@@ -10,6 +10,10 @@
 #include <valarray>
 #include <stdexcept>
 
+#include "lsst/pex/exceptions.h"
+
+namespace pexExcept = lsst::pex::exceptions;
+
 /**
 * @brief Compute the median using the binapprox algorithm.
 *
@@ -20,7 +24,7 @@
 * "Fast computation of the median by successive binning", Jue 23, 2008
 * <http://stat.stanford.edu/~ryantibs/median/medianpaper.pdf>
 *
-* @throw range_error if last <= first or nBins < 2
+* @throw pexExcept::RangeError if last <= first or nBins < 2
 *
 * @return approximate median
 */
@@ -31,9 +35,9 @@ typename std::iterator_traits<ForwardIterator>::value_type lsst::coadd::kaiser::
     int nBins               ///< number of bins to use; 1000 is a typical value
 ) {
     if (first >= last) {
-        throw std::range_error("last <= first");
+        throw pexExcept::RangeError("last <= first");
     } else if (nBins < 2) {
-        throw std::range_error("nBins < 2");
+        throw pexExcept::RangeError("nBins < 2");
     }
 
     typedef typename std::iterator_traits<ForwardIterator>::value_type ValueType;
@@ -112,7 +116,7 @@ typename std::iterator_traits<ForwardIterator>::value_type lsst::coadd::kaiser::
             }
         }
     }
-    throw std::logic_error("Unexpectedly failed to return a value");
+    throw pexExcept::Runtime("Unexpectedly failed to return a value");
 } 
 
 
@@ -129,7 +133,7 @@ typename std::iterator_traits<ForwardIterator>::value_type lsst::coadd::kaiser::
 * @note the name is different than medianBinapprox to avoid confusing SWIG;
 * See the comments in kaiserLib.i for details.
 *
-* @throw range_error if no pixels or nBins < 2
+* @throw pexExcept::RangeError if no pixels or nBins < 2
 *
 * @return approximate median
 */

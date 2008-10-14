@@ -30,7 +30,7 @@ Python interface to lsst::coadd::kaiser functions and classes
 //}
 
 // Everything whose bindings we will have to know about
-%include "lsst/p_lsstSwig.i"    // this needs to go first otherwise i do not know about e.g. boost
+%include "lsst/p_lsstSwig.i"    // this needs to go first otherwise I do not know about e.g. boost
 %include "lsst/afw/image/lsstImageTypes.i"  // vw and Image/Mask types and typedefs
 
 // handle C++ arguments that should be outputs in python
