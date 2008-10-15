@@ -26,7 +26,7 @@ template <typename ImagePixelT, typename MaskPixelT>
 void lsst::coadd::kaiser::addToMaskedImage(
     lsst::afw::image::MaskedImage<ImagePixelT, MaskPixelT> &outMaskedImage, ///< image to be added to
     lsst::afw::image::MaskedImage<ImagePixelT, MaskPixelT> const &inMaskedImage,    ///< image to be added from
-    MaskPixelT const badPixelMask   ///< skip input pixel if mask | badPixelMask != 0
+    MaskPixelT const badPixelMask   ///< skip input pixel if input mask | badPixelMask != 0
 ) {
 //    typedef lsst::afw::image::MaskedPixelAccessor<ImagePixelT, MaskPixelT> MaskedPixelAccessor;
 
@@ -43,7 +43,7 @@ void lsst::coadd::kaiser::addToMaskedImage(
         lsst::afw::image::MaskedPixelAccessor<ImagePixelT, MaskPixelT> inColAcc(inRowAcc);
         lsst::afw::image::MaskedPixelAccessor<ImagePixelT, MaskPixelT> outColAcc(outRowAcc);
         for (unsigned int col = 0; col < nCols; ++col, inColAcc.nextCol(), outColAcc.nextCol()) {
-            if (*(outColAcc.mask) | badPixelMask == 0) {
+            if ((*(inColAcc.mask) & badPixelMask) == 0) {
                 *(outColAcc.image) += *(inColAcc.image);
                 *(outColAcc.variance) += *(inColAcc.variance);
                 *(outColAcc.mask) |= *(inColAcc.mask);

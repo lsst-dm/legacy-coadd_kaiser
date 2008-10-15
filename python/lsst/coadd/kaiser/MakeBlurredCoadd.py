@@ -3,6 +3,8 @@
 
 @file
 """
+__all__ = ["makeBlurredCoadd"]
+
 import lsst.pex.logging as pexLog
 import lsst.afw.image as afwImage
 import lsst.ip.diffim as ipDiffim
@@ -57,13 +59,13 @@ def makeBlurredCoadd(
         # WCS-map blurred exposure onto outputExposure
         pexLog.Trace('lsst.coadd.kaiser.makeBlurredCoadd', 4, "wcs match coadd component")
         ipDiffim.wcsMatch(tempExposure, coaddComp.getBlurredExposure(), "lanczos", RemapKernelSize, RemapKernelSize)
-        tempMaskedImage = tempExposure.getMaskedImage()
-        weightingFactor = 1.0 / coaddComp.getSigmaSq()
-        tempMaskedImage *= weightingFactor
         
         # add convolved science subimage to coadd
         # weighted by sigma squared
         # do NOT add masked pixels from blurredExposure
+        tempMaskedImage = tempExposure.getMaskedImage()
+        weightingFactor = 1.0 / coaddComp.getSigmaSq()
+        tempMaskedImage *= weightingFactor
         badPixelMask = 0xFFFF
         pexLog.Trace('lsst.coadd.kaiser.makeBlurredCoadd', 4, "add coadd component to template")
         kaiserLib.addToMaskedImage(outputMaskedImage, tempMaskedImage, badPixelMask)

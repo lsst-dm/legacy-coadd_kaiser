@@ -6,27 +6,6 @@ python examples/makeBlurredCoadd.py testTeamplate examples/small.txt /net/scratc
 
 On my Mac
 python examples/makeBlurredCoadd.py testTemplate examples/small.txt /Users/rowen/CFHTData/
-
-Both fail with:
-Ready to process the following files:
-./729994p_12; med=464.6; fwhm=4.0; kernelSize=16
-./729995p_12; med=469.2; fwhm=4.0; kernelSize=16
-./729996p_12; med=474.9; fwhm=4.0; kernelSize=16
-./729997p_12; med=486.4; fwhm=4.2; kernelSize=17
-Generating the blank template from the first file
-Building template
-    process image ./729994p_12
-    compute coadd component
-Traceback (most recent call last):
-  File "/Users/rowen/LSST/code/coadd_kaiser-trunk/examples/makeBlurredCoadd.py", line 164, in <module>
-    coaddKaiser.makeBlurredCoadd(templateExposure, imageDataList)
-  File "/Users/rowen/LSST/code/coadd_kaiser-trunk/python/lsst/coadd/kaiser/MakeBlurredCoadd.py", line 55, in makeBlurredCoadd
-    coaddComp = kaiserLib.CoaddComponent(scienceExposure, imageData.psfKernel)
-  File "/Users/rowen/LSST/code/coadd_kaiser-trunk/python/lsst/coadd/kaiser/kaiserLib.py", line 660, in __init__
-    this = _kaiserLib.new_CoaddComponent(*args)
-TypeError: in method 'new_CoaddComponent', argument 1 of type 'lsst::coadd::kaiser::CoaddComponent::ExposureF const &'
-
-This appears to NOT be the SWIG bug fixed in 1.3.36+1. Damn.
 """
 import os
 import sys
