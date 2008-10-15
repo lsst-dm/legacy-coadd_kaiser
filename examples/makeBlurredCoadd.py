@@ -1,9 +1,13 @@
 #!/usr/bin/env python
 """
 Test:
+on my Unix box:
+python examples/makeBlurredCoadd.py testTeamplate examples/small.txt /net/scratch1/rowen/cfhtdata/
+
+On my Mac
 python examples/makeBlurredCoadd.py testTemplate /Users/rowen/CFHTData/small.txt /Users/rowen/CFHTData/
 
-Fails with:
+Both fail with:
 Ready to process the following files:
 ./729994p_12; med=464.6; fwhm=4.0; kernelSize=16
 ./729995p_12; med=469.2; fwhm=4.0; kernelSize=16
@@ -22,7 +26,7 @@ Traceback (most recent call last):
     this = _kaiserLib.new_CoaddComponent(*args)
 TypeError: in method 'new_CoaddComponent', argument 1 of type 'lsst::coadd::kaiser::CoaddComponent::ExposureF const &'
 
-Is this the SWIG bug fixed in 1.3.36+1?
+This appears to NOT be the SWIG bug fixed in 1.3.36+1. Damn.
 """
 import os
 import sys
