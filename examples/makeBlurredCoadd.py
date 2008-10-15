@@ -16,7 +16,7 @@ from lsst.daf.base import DataProperty
 import lsst.pex.logging as pexLog
 import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
-import lsst.coadd.kaiser as coaddKaiser
+import lsst.coadd.kaiser.MakeBlurredCoadd as kaiserMake
 
 RadPerDeg = math.pi / 180.0
 
@@ -165,6 +165,6 @@ imagename  median  stdDev  #stars  FWHM
     templateExposure = makeBlankTemplateExposure(firstExposure)
 
     print "Building template"
-    coaddKaiser.makeBlurredCoadd(templateExposure, imageDataList)
+    kaiserMake.makeBlurredCoadd(templateExposure, imageDataList)
     templateExposure.writeFits(outname)
         
