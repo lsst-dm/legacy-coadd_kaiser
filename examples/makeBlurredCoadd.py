@@ -5,7 +5,7 @@ on my Unix box:
 python examples/makeBlurredCoadd.py testTeamplate examples/small.txt /net/scratch1/rowen/cfhtdata/
 
 On my Mac
-python examples/makeBlurredCoadd.py testTemplate /Users/rowen/CFHTData/small.txt /Users/rowen/CFHTData/
+python examples/makeBlurredCoadd.py testTemplate examples/small.txt /Users/rowen/CFHTData/
 
 Both fail with:
 Ready to process the following files:

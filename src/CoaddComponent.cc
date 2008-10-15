@@ -27,7 +27,7 @@ namespace afwImage = lsst::afw::image;
  * @ingroup coadd::kaiser
  */ 
 lsst::coadd::kaiser::CoaddComponent::CoaddComponent(
-    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &scienceExposure,   ///< science Exposure
+    ExposureF const &scienceExposure,   ///< science Exposure
     afwMath::Kernel const &psfKernel    ///< PSF of science Exposure
 ) :
     LsstBase(typeid(this)),
@@ -40,7 +40,7 @@ lsst::coadd::kaiser::CoaddComponent::CoaddComponent(
     computeBlurredExposure(scienceExposure, psfKernel);
 };
         
-void lsst::coadd::kaiser::CoaddComponent::addToCoadd(lsst::afw::image::Exposure<pixelType, lsst::afw::image::maskPixelType> &coadd) {
+void lsst::coadd::kaiser::CoaddComponent::addToCoadd(ExposureD &coadd) {
     throw pexExcept::Runtime("Not implemented");
 };
 
@@ -50,11 +50,11 @@ void lsst::coadd::kaiser::CoaddComponent::addToCoadd(lsst::afw::image::Exposure<
  * @ingroup coadd::kaiser
  */
 void lsst::coadd::kaiser::CoaddComponent::computeSigmaSq(
-    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &scienceExposure    ///< science Exposure
+    ExposureF const &scienceExposure    ///< science Exposure
 ) {
     typedef afwImage::MaskedPixelAccessor<float, afwImage::maskPixelType> MaskedPixelAccessorF;
 
-    lsst::afw::image::MaskedImage<float, lsst::afw::image::maskPixelType> scienceMI(scienceExposure.getMaskedImage());
+    MaskedImageF scienceMI(scienceExposure.getMaskedImage());
     const unsigned int nCols(scienceMI.getCols());
     const unsigned int nRows(scienceMI.getRows());
     std::vector<double> varianceList(nCols * nRows);
@@ -106,13 +106,13 @@ void lsst::coadd::kaiser::CoaddComponent::computeBlurredPsf(
  * @ingroup coadd::kaiser
  */
 void lsst::coadd::kaiser::CoaddComponent::computeBlurredExposure(
-    lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> const &scienceExposure,   ///< science exposure
+    ExposureF const &scienceExposure,   ///< science exposure
     afwMath::Kernel const &psfKernel    ///< PSF kernel
 ) {
     // getMaskPlane should be a static function, but meanwhile...
-    lsst::afw::image::MaskedImage<float, lsst::afw::image::maskPixelType> scienceMI(scienceExposure.getMaskedImage());
+    MaskedImageF scienceMI(scienceExposure.getMaskedImage());
     int edgeBit = scienceMI.getMask()->getMaskPlane("EDGE");
-    lsst::afw::image::MaskedImage<pixelType, lsst::afw::image::maskPixelType> blurredMI = _blurredExposure.getMaskedImage();
+    MaskedImageD blurredMI = _blurredExposure.getMaskedImage();
     afwMath::convolve(blurredMI, scienceMI, psfKernel, edgeBit, false);
     _blurredExposure.setWcs(scienceExposure.getWcs());
 };
