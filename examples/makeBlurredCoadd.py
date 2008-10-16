@@ -73,7 +73,7 @@ def makeBlankTemplateExposure(fromExposure):
     fromWcs = fromExposure.getWcs()
 
     templateShape = fromShape * 2
-    templateMaskedImage = afwImage.MaskedImageF(templateShape[0], templateShape[1])
+    templateMaskedImage = afwImage.MaskedImageD(templateShape[0], templateShape[1])
     
     # make tangent-plane projection WCS for the template
     raDecCtr = arrayFromCoord2(fromWcs.colRowToRaDec(fromCtr[0], fromCtr[1]))
@@ -98,7 +98,7 @@ def makeBlankTemplateExposure(fromExposure):
     templateMetaData.addProperty(DataProperty("CD2_1", 0.0))
     templateMetaData.addProperty(DataProperty("CD2_2", templateDegPerPix))
     templateWcs = afwImage.Wcs(templateMetaData)
-    templateExposure = afwImage.ExposureF(templateMaskedImage, templateWcs)
+    templateExposure = afwImage.ExposureD(templateMaskedImage, templateWcs)
     return templateExposure
 
     
