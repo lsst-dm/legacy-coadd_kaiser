@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import with_statement
 """
 Test:
 on my Unix box:
@@ -25,7 +26,7 @@ class ImageData(object):
     
     Inputs:
     - filepath      full path to masked image, without the "_img.fits"
-    - sky           sky background level (assumed constant over the whole image)
+    - skyFunction   sky model (an lsst.afw.math.Function2D)
     - fwhm          FWHM of stars on image (assumed constant over the whole image)
     - kernelSize    size of PSF kernel (#rows = #cols); if None then set to 4 x fwhm
 
@@ -35,9 +36,9 @@ class ImageData(object):
         a Gaussian of width 2*FWHM and 1/10 amplitude for the wings
     - psfKernel     PSF kernel of size kernelSize using psfFunction
     """
-    def __init__(self, filepath, sky, fwhm, kernelSize=None):
+    def __init__(self, filepath, skyFunction, fwhm, kernelSize=None):
         self.filepath = filepath
-        self.sky = float(sky)
+        self.skyFunction = skyFunction
         self.fwhm = float(fwhm)
         sigma = self.fwhm / 2.35
         if kernelSize == None:
@@ -47,7 +48,7 @@ class ImageData(object):
         self.psfKernel = afwMath.AnalyticKernel(self.psfFunction, self.kernelSize, self.kernelSize)
     
     def __str__(self):
-        return "%s; med=%0.1f; fwhm=%0.1f; kernelSize=%s" % (self.filepath, self.sky, self.fwhm, self.kernelSize)
+        return "%s; skyFunction=%s; fwhm=%0.1f; kernelSize=%s" % (self.filepath, self.skyFunction, self.fwhm, self.kernelSize)
 
 def arrayFromCoord2(coord2):
     return numpy.array([coord2.x(), coord2.y()])
@@ -107,8 +108,9 @@ if __name__ == "__main__":
     helpStr = """Usage: makeBlurredCoadd.py coaddfile indata [indir]
 
 where indata is a file containing lines of this form:
-imagename  median  stdDev  #stars  FWHM
-(though only imagename, median, stdDev and FWHM are used)
+  filePath <dum> <dum> fwhmMed <dum> C0 C1 C2 ...
+where C0, C1, C2 are the sky model parameters: sky = C0 + C1 x + C2 y
+Empty lines and lines that start with # are ignored.
 """
     if len(sys.argv) not in (3, 4):
         print helpStr
@@ -127,28 +129,33 @@ imagename  median  stdDev  #stars  FWHM
         indir = "."
 
     # parse indata
+    ImageSuffix = "_img.fits"
     imageDataList = []
-    infile = file(indata, "rU")
-    for line in infile:
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        lineData = line.split()
-        if len(lineData) < 5:
-            print "Could not parse line: %r; skipping it" % (line,)
-            continue
-        filename = lineData[0]
-        if not filename.endswith("_img.fits"):
-            print "Skipping %s; not an image file" % (filename,)
-            continue
-        filepath = os.path.join(indir, filename)
-        if not os.path.isfile(filepath):
-            print "Skipping image %s; file not found" % (filepath,)
-            continue
-        filepath = filepath[0:-9]
-        sky = lineData[1]
-        fwhm = lineData[4]
-        imageDataList.append(ImageData(filepath, sky, fwhm))
+    with file(indata, "rU") as infile:
+        for lineNum, line in enumerate(infile):
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            lineData = line.split()
+            if len(lineData) < 8:
+                print "Skipping line %s: %r; too few values" % (lineNum, line,)
+                continue
+            filename = lineData[0]
+            if not filename.endswith(ImageSuffix):
+                print "Skipping %s; not an image file" % (filename,)
+                continue
+            filepath = os.path.join(indir, filename)
+            if not os.path.isfile(filepath):
+                print "Skipping image %s; file not found" % (filepath,)
+                continue
+            filepath = filepath[0:-len(ImageSuffix)]
+            try:
+                fwhm, c0, c1, c2 = [float(lineData[ii]) for ii in (3, 5, 6, 7)]
+            except Exception:
+                print "Skipping line %s: %r; one or more values not float" % (lineNum, line,)
+                continue
+            skyFunction = afwMath.PolynomialFunction2D((c0, c1, c2))
+            imageDataList.append(ImageData(filepath, skyFunction, fwhm))
 
     print "Ready to process the following files:"
     for imageData in imageDataList:

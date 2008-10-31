@@ -29,7 +29,7 @@ def makeBlurredCoadd(
     Inputs:
     - imageDataList     a list of objects that contain at least these attributes:
         - filepath      full path to image file, excluding "_img.fits"
-        - sky           sky level to subtract from the image
+        - skyFunction   sky model: a subclass of lsst.afw.math.Function2D
         - psfKernel     a PSF kernel model
     
     At the moment it discards the CoadComponents that it generates.
@@ -48,10 +48,9 @@ def makeBlurredCoadd(
         pexLog.Trace('lsst.coadd.kaiser.makeBlurredCoadd', 4, "process image %s" % (imageData.filepath,))
         scienceExposure = afwImage.ExposureF()
         scienceExposure.readFits(imageData.filepath)
-        if imageData.sky != 0:
-            scienceMaskedImage = scienceExposure.getMaskedImage()
-            scienceImage = scienceMaskedImage.getImage()
-            scienceImage -= imageData.sky
+        scienceMaskedImage = scienceExposure.getMaskedImage()
+        scienceImage = scienceMaskedImage.getImage()
+        ipDiffim.subtractFunction(scienceImage.get(), imageData.skyFunction)
     
         pexLog.Trace('lsst.coadd.kaiser.makeBlurredCoadd', 4, "compute coadd component")
         coaddComp = kaiserLib.CoaddComponent(scienceExposure, imageData.psfKernel)
