@@ -8,9 +8,6 @@
 *
 * @todo: move to a better location
 */
-#include "boost/cstdint.hpp"
-
-#include "lsst/coadd/kaiser.h"
 #include "lsst/coadd/kaiser/addToMaskedImage.h"
 
 namespace pexExcept = lsst::pex::exceptions;
@@ -20,58 +17,44 @@ namespace pexExcept = lsst::pex::exceptions;
 *
 * @todo: move to a better location (afw?)
 *
-* @throw pexExcept::InvalidParameter if the image sizes do not match.
+* @throw pexExcept::InvalidParameterException if the image sizes do not match.
 */
-template <typename ImagePixelT, typename MaskPixelT>
+template <typename ImagePixelT, typename MaskPixelT, typename VariancePixelT>
 void lsst::coadd::kaiser::addToMaskedImage(
-    lsst::afw::image::MaskedImage<ImagePixelT, MaskPixelT> &outMaskedImage, ///< image to be added to
-    lsst::afw::image::MaskedImage<ImagePixelT, MaskPixelT> const &inMaskedImage,    ///< image to be added from
+    lsst::afw::image::MaskedImage<ImagePixelT, MaskPixelT, VariancePixelT> &outMaskedImage, ///< masked image to be added to
+    lsst::afw::image::MaskedImage<ImagePixelT, MaskPixelT, VariancePixelT> const &inMaskedImage,    ///< masked image to add
     MaskPixelT const badPixelMask   ///< skip input pixel if input mask | badPixelMask != 0
 ) {
-//    typedef lsst::afw::image::MaskedPixelAccessor<ImagePixelT, MaskPixelT> MaskedPixelAccessor;
+    typedef lsst::afw::image::MaskedImage<ImagePixelT, MaskPixelT, VariancePixelT> MaskedImageT;
 
-    const unsigned int nCols = inMaskedImage.getCols();
-    const unsigned int nRows = inMaskedImage.getRows();
-    if ((nCols != outMaskedImage.getCols()) ||
-        (nRows != outMaskedImage.getRows())) {
-        throw pexExcept::InvalidParameter("MaskedImage sizes do not match");
+    if (inMaskedImage.getDimensions() != outMaskedImage.getDimensions()) {
+        throw LSST_EXCEPT(pexExcept::InvalidParameterException, "MaskedImage sizes do not match");
     }
 
-    lsst::afw::image::MaskedPixelAccessor<ImagePixelT, MaskPixelT> inRowAcc(inMaskedImage);
-    lsst::afw::image::MaskedPixelAccessor<ImagePixelT, MaskPixelT> outRowAcc(outMaskedImage);
-    for (unsigned int row = 0; row < nRows; ++row, inRowAcc.nextRow(), outRowAcc.nextRow()) {
-        lsst::afw::image::MaskedPixelAccessor<ImagePixelT, MaskPixelT> inColAcc(inRowAcc);
-        lsst::afw::image::MaskedPixelAccessor<ImagePixelT, MaskPixelT> outColAcc(outRowAcc);
-        for (unsigned int col = 0; col < nCols; ++col, inColAcc.nextCol(), outColAcc.nextCol()) {
-            if ((*(inColAcc.mask) & badPixelMask) == 0) {
-                *(outColAcc.image) += *(inColAcc.image);
-                *(outColAcc.variance) += *(inColAcc.variance);
-                *(outColAcc.mask) |= *(inColAcc.mask);
+    // Set the pixels row by row, to avoid repeated checks for end-of-row
+    for (int y = 0, endY = inMaskedImage.getHeight(); y != endY; ++y) {
+        typename MaskedImageT::const_x_iterator inPtr = inMaskedImage.row_begin(y);
+        typename MaskedImageT::const_x_iterator inEndPtr = inMaskedImage.row_end(y);
+        typename MaskedImageT::x_iterator outPtr = outMaskedImage.row_begin(y);
+        for (; inPtr != inEndPtr; ++inPtr, ++outPtr) {
+            if ((inPtr.mask() & badPixelMask) == 0) {
+                *outPtr += *inPtr;
             }
         }
-    }    
+    }
 }
 
 //
 // Explicit instantiations
 //
-template void lsst::coadd::kaiser::addToMaskedImage<double, lsst::afw::image::maskPixelType>(
-    lsst::afw::image::MaskedImage<double, lsst::afw::image::maskPixelType> &outMaskedImage,
-    lsst::afw::image::MaskedImage<double, lsst::afw::image::maskPixelType> const &inMaskedImage,
-    lsst::afw::image::maskPixelType const badPixelMask
-);
-template void lsst::coadd::kaiser::addToMaskedImage<float, lsst::afw::image::maskPixelType>(
-    lsst::afw::image::MaskedImage<float, lsst::afw::image::maskPixelType> &outMaskedImage,
-    lsst::afw::image::MaskedImage<float, lsst::afw::image::maskPixelType> const &inMaskedImage,
-    lsst::afw::image::maskPixelType const badPixelMask
-);
-template void lsst::coadd::kaiser::addToMaskedImage<int, lsst::afw::image::maskPixelType>(
-    lsst::afw::image::MaskedImage<int, lsst::afw::image::maskPixelType> &outMaskedImage,
-    lsst::afw::image::MaskedImage<int, lsst::afw::image::maskPixelType> const &inMaskedImage,
-    lsst::afw::image::maskPixelType const badPixelMask
-);
-template void lsst::coadd::kaiser::addToMaskedImage<boost::uint16_t, lsst::afw::image::maskPixelType>(
-    lsst::afw::image::MaskedImage<boost::uint16_t, lsst::afw::image::maskPixelType> &outMaskedImage,
-    lsst::afw::image::MaskedImage<boost::uint16_t, lsst::afw::image::maskPixelType> const &inMaskedImage,
-    lsst::afw::image::maskPixelType const badPixelMask
-);
+#define INSTANTIATE(ImagePixelT) \
+    template void lsst::coadd::kaiser::addToMaskedImage<ImagePixelT, lsst::afw::image::MaskPixel, lsst::afw::image::VariancePixel>( \
+        lsst::afw::image::MaskedImage<ImagePixelT, lsst::afw::image::MaskPixel, lsst::afw::image::VariancePixel> &outMaskedImage, \
+        lsst::afw::image::MaskedImage<ImagePixelT, lsst::afw::image::MaskPixel, lsst::afw::image::VariancePixel> const &inMaskedImage, \
+        lsst::afw::image::MaskPixel const badPixelMask \
+    );
+
+INSTANTIATE(boost::uint16_t);
+INSTANTIATE(int);
+INSTANTIATE(float);
+INSTANTIATE(double);

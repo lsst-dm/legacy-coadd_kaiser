@@ -26,10 +26,10 @@ namespace kaiser {
     class CoaddComponent : public lsst::daf::data::LsstBase {
     public:
         typedef double pixelType; // pixel type for blurred science exposure
-        typedef lsst::afw::image::Exposure<float, lsst::afw::image::maskPixelType> ExposureF;
-        typedef lsst::afw::image::MaskedImage<float, lsst::afw::image::maskPixelType> MaskedImageF;
-        typedef lsst::afw::image::Exposure<pixelType, lsst::afw::image::maskPixelType> ExposureD;
-        typedef lsst::afw::image::MaskedImage<pixelType, lsst::afw::image::maskPixelType> MaskedImageD;
+        typedef lsst::afw::image::Exposure<float, lsst::afw::image::MaskPixel> ExposureF;
+        typedef lsst::afw::image::MaskedImage<float, lsst::afw::image::MaskPixel> MaskedImageF;
+        typedef lsst::afw::image::Exposure<pixelType, lsst::afw::image::MaskPixel> ExposureD;
+        typedef lsst::afw::image::MaskedImage<pixelType, lsst::afw::image::MaskPixel> MaskedImageD;
 
         CoaddComponent(
             ExposureF const &scienceExposure,
@@ -63,6 +63,8 @@ namespace kaiser {
             lsst::afw::math::Kernel const &psfKernel
         );
     };
+
+    void reflectImage(lsst::afw::image::Image<CoaddComponent::pixelType> &image);
 
 }}} // lsst::coadd::kaiser
 

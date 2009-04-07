@@ -1,13 +1,12 @@
 setupRequired(daf_data)
-setupRequired(vw >= 1.0.1+2)
 setupRequired(cfitsio)
 setupRequired(wcslib)
 setupRequired(xpa)
 setupRequired(numpy)
 setupRequired(minuit)
 setupRequired(afw)
-setupRequired(detection)
-setupRequired(ip_diffim)
+# for examples
+setupOptional(meas_algorithms)
 
 setupOptional(afwdata)
 

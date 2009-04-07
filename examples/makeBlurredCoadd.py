@@ -13,45 +13,16 @@ import sys
 import math
 import numpy
 
-from lsst.daf.base import DataProperty
+from lsst.daf.base import PropertySet
 import lsst.pex.logging as pexLog
 import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
+import lsst.afw.detection as afwDet
+import lsst.afw.display.ds9 as ds9
+import lsst.meas.algorithms as measAlg
 import lsst.coadd.kaiser.MakeBlurredCoadd as kaiserMake
 
 RadPerDeg = math.pi / 180.0
-
-class ImageData(object):
-    """Data about a science image
-    
-    Inputs:
-    - filepath      full path to masked image, without the "_img.fits"
-    - skyFunction   sky model (an lsst.afw.math.Function2D)
-    - fwhm          FWHM of stars on image (assumed constant over the whole image)
-    - kernelSize    size of PSF kernel (#rows = #cols); if None then set to 4 x fwhm
-
-    Computed attributes:
-    - psfFunction   PSF model as a double Gaussian, the sum of:
-        a Gaussian of width FWHM for the central peak
-        a Gaussian of width 2*FWHM and 1/10 amplitude for the wings
-    - psfKernel     PSF kernel of size kernelSize using psfFunction
-    """
-    def __init__(self, filepath, skyFunction, fwhm, kernelSize=None):
-        self.filepath = filepath
-        self.skyFunction = skyFunction
-        self.fwhm = float(fwhm)
-        sigma = self.fwhm / 2.35
-        if kernelSize == None:
-            kernelSize = self.fwhm * 4.0
-        self.kernelSize = int(round(kernelSize))
-        self.psfFunction = afwMath.DoubleGaussianFunction2D(sigma, sigma * 2.0, 0.1)
-        self.psfKernel = afwMath.AnalyticKernel(self.psfFunction, self.kernelSize, self.kernelSize)
-    
-    def __str__(self):
-        return "%s; skyFunction=%s; fwhm=%0.1f; kernelSize=%s" % (self.filepath, self.skyFunction, self.fwhm, self.kernelSize)
-
-def arrayFromCoord2(coord2):
-    return numpy.array([coord2.x(), coord2.y()])
 
 def makeBlankTemplateExposure(fromExposure):
     """Generate a blank template from a maskedImage
@@ -68,6 +39,9 @@ def makeBlankTemplateExposure(fromExposure):
     Warning:
     - The maskedImage must use FK5 J2000 coordinates for its WCS. This is NOT checked.
     """
+    def arrayFromCoord2(coord2):
+        return numpy.array([coord2.x(), coord2.y()])
+
     fromMaskedImage = fromExposure.getMaskedImage()
     fromShape = numpy.array([fromMaskedImage.getCols(), fromMaskedImage.getRows()], dtype=int)
     fromCtr = (fromShape - 1) / 2
@@ -75,6 +49,7 @@ def makeBlankTemplateExposure(fromExposure):
 
     templateShape = fromShape * 2
     templateMaskedImage = afwImage.MaskedImageD(templateShape[0], templateShape[1])
+    templateMaskedImage.set((0,0,0))
     
     # make tangent-plane projection WCS for the template
     raDecCtr = arrayFromCoord2(fromWcs.colRowToRaDec(fromCtr[0], fromCtr[1]))
@@ -84,33 +59,208 @@ def makeBlankTemplateExposure(fromExposure):
     fromDegPerPix = math.sqrt(dRaDec[0]**2 + dRaDec[1]**2)
     templateDegPerPix = fromDegPerPix / 2.0
     
-    templateMetaData = DataProperty.createPropertyNode("FitsMetaData")
-    templateMetaData.addProperty(DataProperty("EPOCH", 2000.0))
-    templateMetaData.addProperty(DataProperty("EQUINOX", 2000.0))
-    templateMetaData.addProperty(DataProperty("RADECSYS", "FK5"))
-    templateMetaData.addProperty(DataProperty("CTYPE1", "RA---TAN"))
-    templateMetaData.addProperty(DataProperty("CTYPE2", "DEC--TAN"))
-    templateMetaData.addProperty(DataProperty("CRPIX1", templateShape[0]/2))
-    templateMetaData.addProperty(DataProperty("CRPIX2", templateShape[1]/2))
-    templateMetaData.addProperty(DataProperty("CRVAL1", raDecCtr[0]))
-    templateMetaData.addProperty(DataProperty("CRVAL2", raDecCtr[1]))
-    templateMetaData.addProperty(DataProperty("CD1_1", templateDegPerPix))
-    templateMetaData.addProperty(DataProperty("CD1_2", 0.0))
-    templateMetaData.addProperty(DataProperty("CD2_1", 0.0))
-    templateMetaData.addProperty(DataProperty("CD2_2", templateDegPerPix))
+    templateMetaData = PropertySet.createPropertyNode("FitsMetaData")
+    templateMetaData.addProperty(PropertySet("EPOCH", 2000.0))
+    templateMetaData.addProperty(PropertySet("EQUINOX", 2000.0))
+    templateMetaData.addProperty(PropertySet("RADECSYS", "FK5"))
+    templateMetaData.addProperty(PropertySet("CTYPE1", "RA---TAN"))
+    templateMetaData.addProperty(PropertySet("CTYPE2", "DEC--TAN"))
+    templateMetaData.addProperty(PropertySet("CRPIX1", templateShape[0]/2))
+    templateMetaData.addProperty(PropertySet("CRPIX2", templateShape[1]/2))
+    templateMetaData.addProperty(PropertySet("CRVAL1", raDecCtr[0]))
+    templateMetaData.addProperty(PropertySet("CRVAL2", raDecCtr[1]))
+    templateMetaData.addProperty(PropertySet("CD1_1", templateDegPerPix))
+    templateMetaData.addProperty(PropertySet("CD1_2", 0.0))
+    templateMetaData.addProperty(PropertySet("CD2_1", 0.0))
+    templateMetaData.addProperty(PropertySet("CD2_2", templateDegPerPix))
     templateWcs = afwImage.Wcs(templateMetaData)
     templateExposure = afwImage.ExposureD(templateMaskedImage, templateWcs)
     return templateExposure
 
+
+def subtractBackground(exposure):
+    """Subtract the background from an Exposure
+    """
+    maskedImage = exposure.getMaskedImage()
     
+    bkgControl = afwMath.BackgroundControl(afwMath.NATURAL_SPLINE)
+    bkgControl.setNxSample(max(2, int(maskedImage.getWidth()/256) + 1))
+    bkgControl.setNySample(max(2, int(maskedImage.getHeight()/256) + 1))
+    bkgControl.sctrl.setNumSigmaClip(3)
+    bkgControl.sctrl.setNumIter(3)
+    
+    bkgObj = afwMath.makeBackground(maskedImage, bkgControl)
+    maskedImage -= bkgObj.getImageF()
+
+
+def detectSources(maskedImage, detectSourcesPolicy, doDisplay = False):
+    """Measure sources on an Exposure.
+    
+    This really should be a subroutine in meas_algorithms and I submitted PR #743 requesting that.
+    Meanwhile this code is taken from meas_pipelines SourceDetectionStage.
+    
+    Inputs:
+    - maskedImage: masked image on which to measure sources
+    - detectSourcesPolicy: a Policy containing elements (with suggested values):
+        minPixels:1 
+        thresholdValue: 3
+        thresholdType: "stdev"
+        psfPolicyPolicy: {
+            algorithm: "DoubleGaussian"
+            width = 15
+            height = 15
+            #5*/(2*sqrt(2*log(2)))
+            parameter: 3.22195985
+        }
+    - doDisplay: True to display diagnostic information on ds9
+    
+    psfPolicy is used to smooth the image before detecting sources.
+    """
+    # parse policy
+    psfPolicyPolicy = detectSourcesPolicy.getPolicy("psfPolicyPolicy")
+    psfPolicy = makePsf(psfPolicyPolicy)
+
+    minPixels = detectSourcesPolicy.get("minPixels")
+    thresholdValue = detectSourcesPolicy.get("thresholdValue")
+    thresholdType = detectSourcesPolicy.get("thresholdType")
+    thresholdObj = afwDet.createThreshold(thresholdValue, thresholdType, True)    
+    
+    convolvedImage = maskedImage.Factory(maskedImage.getDimensions())
+    convolvedImage.setXY0(maskedImage.getXY0())
+
+    if doDisplay:
+        ds9.mtv(maskedImage)
+        
+    # Smooth the Image
+    psfPolicy.convolve(convolvedImage, maskedImage, convolvedImage.getMask().getMaskPlane("EDGE"))
+
+    # Only search psf-smooth part of frame
+    llc = afwImg.PointI(psfPolicy.getKernel().getWidth()/2,  psfPolicy.getKernel().getHeight()/2)
+    urc = afwImg.PointI(convolvedImage.getWidth() - 1, convolvedImage.getHeight() - 1)
+    urc -= llc
+    bbox = afwImg.BBox(llc, urc)
+    middle = convolvedImage.Factory(convolvedImage, bbox)
+   
+    detectionSet = afwDet.makeDetectionSet(middle, thresholdObj, "DETECTED", minPixels)
+    # detectionSet only searched the middle but it belongs to the entire MaskedImage
+    detectionSet.setRegion(afwImg.BBox(afwImg.PointI(maskedImage.getX0(), maskedImage.getY0()),
+                                       maskedImage.getWidth(), maskedImage.getHeight()));
+
+    # Grow the detections into the edge by at least one pixel so that it sees the EDGE bit
+    grow, isotropic = 1, False
+    detectionSet = afwDet.DetectionSetF(detectionSet, grow, isotropic)
+    detectionSet.setMask(maskedImage.getMask(), "DETECTED")
+
+    return detectionSet
+
+def makePsf(self, psfPolicy):
+    params = []        
+    params.append(psfPolicy.getString("algorithm"))
+    params.append(psfPolicy.getInt("width"))
+    params.append(psfPolicy.getInt("height"))
+    if psfPolicy.exists("parameter"):
+        params += psfPolicy.getDoubleArray("parameter")
+    
+    return measAlg.createPSF(*params)
+
+
+def measureSources(exposure, detectionSet, measureSourcesPolicy, doDisplay=False):
+    """Measure the characteristics of sources.
+
+    This really should be a subroutine in meas_algorithms and I submitted PR #743 requesting that.
+    Meanwhile this code is taken from meas_pipelines SourceMeasurementStage.
+    
+    measureSourcesPolicy: { 
+        centroidAlgorithm: "SDSS"
+        shapeAlgorithm: "SDSS"
+        photometryAlgorithm: "NAIVE"
+        apRadius: 3.0
+        psfPolicy: {
+            algorithm: "DoubleGaussian"
+            width = 15
+            height = 15
+            #5*/(2*sqrt(2*log(2)))
+            parameter: 3.22195985
+        }
+    }
+    """
+    psfPolicy = measureSourcesPolicy.getPolicy("psfPolicy")
+    psf = makePsf(psfPolicy)
+    measureSources = measAlg.makeMeasureSources(exposure, measureSourcesPolicy, self.psf)
+    
+    footprints = detectionSet.getFootprints()
+    sourceList = afwDetection.SourceSet()
+    for i in range(len(footprints)):
+        source = afwDetection.Source()
+        sourceList.append(source)
+    
+        source.setId(i)
+        source.setFlagForDetection(source.getFlagForDetection() | measAlg.Flags.BINNED1);
+    
+        try:
+            measureSources.apply(source, footprints[i])
+        except Exception, e:
+            try:
+                print e
+            except Exception, ee:
+                print ee
+        
+        if source.getFlagForDetection() & measAlg.Flags.EDGE:
+            continue
+    
+        if doDisplay:
+            xc, yc = source.getXAstrom() - mi.getX0(), source.getYAstrom() - mi.getY0()
+            if False:
+                ds9.dot("%.1f %d" % (source.getPsfFlux(), source.getId()), xc, yc+1)
+    
+            ds9.dot("+", xc, yc, size=1)
+            
+            if source.getFlagForDetection() & (measAlg.Flags.INTERP_CENTER | measAlg.Flags.SATUR_CENTER):
+                continue
+            if False:               # XPA causes trouble
+                Ixx, Ixy, Iyy = source.getIxx(), source.getIxy(), source.getIyy()
+                ds9.dot("@:%g,%g,%g" % (Ixx, Ixy, Iyy), xc, yc)
+    return sourceList
+
+
+def fitPsf(exposure, sourceList, fitPsfPolicy):
+    """Fit PSF based on a set of measured sources.
+    
+    fitPsfPolicy must contain:
+    - fluxLim
+    - sizeCellX
+    - sizeCellY
+    - nEigenComponents
+    - spatialOrder
+    - nStarPerCell
+    - kernelSize
+    - nStarPerCellSpatialFit
+    - tolerance
+    - reducedChi2ForPsfCandidates
+    - nIterForPsf
+
+    Return a fit PSF and a psfCelLSet (whatever that is)
+    """
+    sdqaRatings = sdqa.SdqaRatingSet()
+
+    psf, psfCellSet = measAlg.Psf.getPsf(
+        exposure = exposure,
+        sourceList = sourceList,
+        moPolicy = fitPsfPolicy,
+        sdqaRatings = sdqaRatings,
+    )
+    return psf, psfCellSet
+
+
 if __name__ == "__main__":
     pexLog.Trace.setVerbosity('lsst.coadd', 5)
     helpStr = """Usage: makeBlurredCoadd.py coaddfile indata [indir]
 
-where indata is a file containing lines of this form:
-  filePath <dum> <dum> fwhmMed <dum> C0 C1 C2 ...
-where C0, C1, C2 are the sky model parameters: sky = C0 + C1 x + C2 y
+where indata is a file containing a list of paths to Exposures (without the final _img.fits);
+these paths are relative to indir, if indir is specified.
 Empty lines and lines that start with # are ignored.
+
+The policy controlling the parameters is makeBlurredCoadd_policy.paf
 """
     if len(sys.argv) not in (3, 4):
         print helpStr
@@ -128,50 +278,42 @@ Empty lines and lines that start with # are ignored.
     else:
         indir = "."
 
+    makeBlurredCoaddPolicyPath = "makeBlurredCoadd_policy.paf"
+    makeBlurredCoaddPolicy = policy.Policy.createPolicy(makeBlurredCoaddPolicyPath)
+    detectSourcesPolicy = makeBlurredCoaddPolicy.getPolicy("detectSourcesPolicy")
+    measureSourcesPolicy = makeBlurredCoaddPolicy.getPolicy("measureSourcesPolicy")
+    fitPsfPolicy = makeBlurredCoaddPolicy.getPolicy("fitPsfPolicy")
+
     # parse indata
     ImageSuffix = "_img.fits"
     imageDataList = []
+    templateExposure = None
     with file(indata, "rU") as infile:
         for lineNum, line in enumerate(infile):
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
-            lineData = line.split()
-            if len(lineData) < 8:
-                print "Skipping line %s: %r; too few values" % (lineNum, line,)
-                continue
-            filename = lineData[0]
-            if not filename.endswith(ImageSuffix):
-                print "Skipping %s; not an image file" % (filename,)
-                continue
+            filename = line
             filepath = os.path.join(indir, filename)
-            if not os.path.isfile(filepath):
-                print "Skipping image %s; file not found" % (filepath,)
+            if not os.path.isfile(filepath + ImageSuffix):
+                print "Skipping exposure %s; file %s not found" % (filepath, filepath + ImageSuffix)
                 continue
-            filepath = filepath[0:-len(ImageSuffix)]
-            try:
-                fwhm, c0, c1, c2 = [float(lineData[ii]) for ii in (3, 5, 6, 7)]
-            except Exception:
-                print "Skipping line %s: %r; one or more values not float" % (lineNum, line,)
-                continue
-            skyFunction = afwMath.PolynomialFunction2D((c0, c1, c2))
-            imageDataList.append(ImageData(filepath, skyFunction, fwhm))
+            
+            print "Processing exposure %s" % (filepath,)
+            exposure = afwImage.ExposureF(filepath)
+            maskedImage = exposure.getMaskedImage()
+            
+            if not templateExposure:
+                templateExposure = makeBlankTemplateExposure(exposure)
+            
+            subtractBackground(exposure)
+            
+            # fit a spatially varying PSF
+            detectionSet = detectSources(maskedImage, detectSourcesPolicy, doDisplay = False)
+            sourceList = measureSources(exposure, detectionSet, measureSourcesPolicy, doDisplay=False)
+            psf, psfCellSet = fitPsf(exposure, sourceList, fitPsfPolicy)
 
-    print "Ready to process the following files:"
-    for imageData in imageDataList:
-        print imageData
-    
-    print "Generating the blank template from the first file"
-    # generate blank template Exposure with these characterstics relative to the first exposure:
-    # twice as many pixels
-    # same RA/Dec center
-    # half the scale (degrees/pixel)
-    # north up, east to the right
-    firstExposure = afwImage.ExposureF()
-    firstExposure.readFits(imageDataList[0].filepath)
-    templateExposure = makeBlankTemplateExposure(firstExposure)
-
-    print "Building template"
-    kaiserMake.makeBlurredCoadd(templateExposure, imageDataList)
-    templateExposure.writeFits(outname)
-        
+            # compute coadd component
+            
+            # add coadd component to template
+            

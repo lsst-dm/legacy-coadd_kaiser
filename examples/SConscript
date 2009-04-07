@@ -2,7 +2,6 @@
 Import("env")
 import sys
 
-env.Program(["median.cc"], LIBS=env.getlibs("coadd_kaiser"))
 env.Program(["coaddComponent.cc"], LIBS=env.getlibs("coadd_kaiser"))
 
 import lsst.tests

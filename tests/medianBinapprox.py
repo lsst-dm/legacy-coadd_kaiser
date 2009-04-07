@@ -69,8 +69,7 @@ class medianBinApproxTestCase(unittest.TestCase):
     def testSmallImage(self):
         """Test median of small image
         """
-        image = afwImage.ImageF()
-        image.readFits(inFilePathSmallImage)
+        image = afwImage.ImageF(inFilePathSmallImage)
         for nBins in (10, 100, 1000):
             self._testOneImage(image, nBins)
     

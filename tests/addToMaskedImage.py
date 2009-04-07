@@ -70,8 +70,7 @@ class addToMaskedImageTestCase(unittest.TestCase):
     def testSmall(self):
         """Test addToMaskedImage on afwdata small image
         """
-        inMaskedImage = afwImage.MaskedImageF()
-        inMaskedImage.readFits(inFilePathSmall)
+        inMaskedImage = afwImage.MaskedImageF(inFilePathSmall)
         outMaskedImage = afwImage.MaskedImageF(inMaskedImage.getCols(), inMaskedImage.getRows())
         for badPixelMask in (0, 0xF, 0xFF, 0xFFF, 0xFFFF):
             self.referenceTest(outMaskedImage, inMaskedImage, badPixelMask)

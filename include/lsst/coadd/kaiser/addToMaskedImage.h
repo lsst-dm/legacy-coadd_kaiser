@@ -1,6 +1,6 @@
 // -*- LSST-C++ -*-
-#ifndef LSST_COADD_KAISER_COPYMASKEDIMAGE_H
-#define LSST_COADD_KAISER_COPYMASKEDIMAGE_H
+#ifndef LSST_COADD_KAISER_ADDTOMASKEDIMAGE_H
+#define LSST_COADD_KAISER_ADDTOMASKEDIMAGE_H
 /**
 * @brief declare addToMaskedImage
 *
@@ -16,13 +16,13 @@ namespace lsst {
 namespace coadd {
 namespace kaiser {
 
-template<typename ImagePixelT, typename MaskPixelT> 
-void addToMaskedImage(
-    lsst::afw::image::MaskedImage<ImagePixelT, MaskPixelT> &outMaskedImage,
-    lsst::afw::image::MaskedImage<ImagePixelT, MaskPixelT> const &inMaskedImage,
-    MaskPixelT const badPixelMask
-);
+    template<typename ImagePixelT, typename MaskPixelT, typename VariancePixelT>
+    void addToMaskedImage(
+        lsst::afw::image::MaskedImage<ImagePixelT, MaskPixelT, VariancePixelT> &outMaskedImage,
+        lsst::afw::image::MaskedImage<ImagePixelT, MaskPixelT, VariancePixelT> const &inMaskedImage,
+        MaskPixelT const badPixelMask
+    );
 
 }}} // lsst::coadd::kaiser
 
-#endif // !defined(LSST_COADD_KAISER_COPYMASKEDIMAGE_H)
+#endif // !defined(LSST_COADD_KAISER_ADDTOMASKEDIMAGE_H)

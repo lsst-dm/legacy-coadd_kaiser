@@ -46,8 +46,7 @@ def makeBlurredCoadd(
 
     for imageData in imageDataList:
         pexLog.Trace('lsst.coadd.kaiser.makeBlurredCoadd', 4, "process image %s" % (imageData.filepath,))
-        scienceExposure = afwImage.ExposureF()
-        scienceExposure.readFits(imageData.filepath)
+        scienceExposure = afwImage.ExposureF(imageData.filepath)
         scienceMaskedImage = scienceExposure.getMaskedImage()
         scienceImage = scienceMaskedImage.getImage()
         ipDiffim.subtractFunction(scienceImage.get(), imageData.skyFunction)

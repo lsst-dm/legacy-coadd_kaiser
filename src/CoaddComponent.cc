@@ -6,28 +6,35 @@
 *
 * @author Russell Owen
 */
+#include <algorithms> // for swap
+
 #include "lsst/pex/exceptions.h"
 #include "lsst/coadd/kaiser.h"
 
 template<typename PixelType>
-void reflectImage(lsst::afw::image::Image<PixelType> &image);
 
 namespace pexExcept = lsst::pex::exceptions;
 namespace afwMath = lsst::afw::math;
 namespace afwImage = lsst::afw::image;
+namespace coaddKaiser = coaddKaiser;
 
 /**
  * @brief CoaddComponent constructor
  *
- * @todo: decide if we want to support spatially varying kernels. If we want both that
- * and scienceExposure to be convolved with the *reflected* PSF then we some significant work to do;
- * it will probably require new convolution functions. For now, for expediency, I allow spatially
- * varying kernel but do not convolve with the reflected PSF.
+ * @todo: handle asymmetric kernels properly. scienceExposure should be convolved with * the *reflected* PSF,
+ * but this requires significant extra work (perhaps new convolution functions or kernels) to handle
+ * spatially varying kernels. For now, for expediency, I allow spatially varying kernels but convolve with
+ * the un-reflected PSF.
+ * @todo: address Robert Lupton's concerns about handling the background. He feels we should not
+ * subtract the background from science exposures before adding them to the template, but I fail to see
+ * how we can avoid doing so. Otherwise the background of the template will vary pixel by pixel
+ * depending on how many good pixels from the various science exposures contributed to a give pixel
+ * of the template.
  *
  * @ingroup coadd::kaiser
  */ 
-lsst::coadd::kaiser::CoaddComponent::CoaddComponent(
-    ExposureF const &scienceExposure,   ///< science Exposure
+coaddKaiser::CoaddComponent::CoaddComponent(
+    ExposureF const &scienceExposure,   ///< background-subtracted science Exposure
     afwMath::Kernel const &psfKernel    ///< PSF of science Exposure
 ) :
     LsstBase(typeid(this)),
@@ -40,7 +47,7 @@ lsst::coadd::kaiser::CoaddComponent::CoaddComponent(
     computeBlurredExposure(scienceExposure, psfKernel);
 };
         
-void lsst::coadd::kaiser::CoaddComponent::addToCoadd(ExposureD &coadd) {
+void coaddKaiser::CoaddComponent::addToCoadd(ExposureD &coadd) {
     throw pexExcept::Runtime("Not implemented");
 };
 
@@ -49,28 +56,27 @@ void lsst::coadd::kaiser::CoaddComponent::addToCoadd(ExposureD &coadd) {
  *
  * @ingroup coadd::kaiser
  */
-void lsst::coadd::kaiser::CoaddComponent::computeSigmaSq(
+void coaddKaiser::CoaddComponent::computeSigmaSq(
     ExposureF const &scienceExposure    ///< science Exposure
 ) {
-    typedef afwImage::MaskedPixelAccessor<float, afwImage::maskPixelType> MaskedPixelAccessorF;
+    typedef afwImage::MaskedPixelAccessor<float, afwImage::MaskPixel> MaskedPixelAccessorF;
+    typedef typename afwImage::MaskedImage<float, afwImage::MaskPixel>::x_iterator x_iteratorF;
+    typedef typename afwImage::MaskedImage<float, afwImage::MaskPixel>::y_iterator y_iteratorF;
 
     MaskedImageF scienceMI(scienceExposure.getMaskedImage());
-    const unsigned int nCols(scienceMI.getCols());
-    const unsigned int nRows(scienceMI.getRows());
-    std::vector<double> varianceList(nCols * nRows);
+    std::vector<double> varianceList(scienceMI.getHeight() * scienceMI.getWidth());
     std::vector<double>::iterator varIter = varianceList.begin();
-    MaskedPixelAccessorF miRow(scienceMI);
-    for (unsigned int row = 0; row < nRows; ++row, miRow.nextRow()) {
-        MaskedPixelAccessorF miCol = miRow;
-        for (unsigned int col = 0; col < nCols; ++col, miCol.nextCol()) {
-            if (*miCol.mask != 0) {
+    for (int y = 0; y != scienceMI.getHeight(); ++y) {
+        for (x_iteratorF ptr = scienceExposure.row_begin(y); ptr != scienceExposure.row_end(y); ++ptr) {
+            if (ptr->mask() != 0) {
                 continue;
             }
-            *varIter = *miCol.variance;
+            *varIter = ptr->variance();
             ++varIter;
+
         }
     }
-    _sigmaSq = lsst::coadd::kaiser::medianBinapprox(varianceList.begin(), varIter);
+    _sigmaSq = coaddKaiser::medianBinapprox(varianceList.begin(), varIter);
 };
         
 /**
@@ -78,7 +84,7 @@ void lsst::coadd::kaiser::CoaddComponent::computeSigmaSq(
  *
  * @ingroup coadd::kaiser
  */
-void lsst::coadd::kaiser::CoaddComponent::computeBlurredPsf(
+void coaddKaiser::CoaddComponent::computeBlurredPsf(
     afwMath::Kernel const &psfKernel    ///< PSF kernel
 ) {
     unsigned int psfCols = psfKernel.getCols();
@@ -90,8 +96,8 @@ void lsst::coadd::kaiser::CoaddComponent::computeBlurredPsf(
     psfKernel.computeImage(reflPsfImage, dumImSum, true);
     reflectImage(reflPsfImage);
     afwImage::Image<double> paddedReflPsfImage(blurredPsfCols, blurredPsfRows);
-    vw::BBox2i centerBox(psfKernel.getCtrCol(), psfKernel.getCtrRow(), psfCols, psfRows);
-    paddedReflPsfImage.replaceSubImage(centerBox, reflPsfImage);
+    afwImage::BBox centerBox(afwImage::PointI(psfKernel.getCtrCol(), psfKernel.getCtrRow()), psfCols, psfRows);
+    afwImage::Image<double>(paddedReflPsfImage, centerBox, false) << reflPsfImage;
     
     // convolve zero-padded reflected image of psf kernel with psf kernel
     afwMath::convolve(_blurredPsfImage, paddedReflPsfImage, psfKernel, true);
@@ -105,7 +111,7 @@ void lsst::coadd::kaiser::CoaddComponent::computeBlurredPsf(
  *
  * @ingroup coadd::kaiser
  */
-void lsst::coadd::kaiser::CoaddComponent::computeBlurredExposure(
+void coaddKaiser::CoaddComponent::computeBlurredExposure(
     ExposureF const &scienceExposure,   ///< science exposure
     afwMath::Kernel const &psfKernel    ///< PSF kernel
 ) {
@@ -123,26 +129,27 @@ void lsst::coadd::kaiser::CoaddComponent::computeBlurredExposure(
  * @ingroup coadd::kaiser
  */
 template<typename PixelType>
-void reflectImage(afwImage::Image<PixelType> &image) {
-    // this would be simpler with a proper STL iterator, but vw::PixelIterator is slow and read-only
-    const unsigned int nCols = image.getCols();
-    const unsigned int nRows = image.getRows();
-    vw::MemoryStridingPixelAccessor<PixelType> frontAcc(image.getIVwPtr()->origin());
-    vw::MemoryStridingPixelAccessor<PixelType> backAcc(image.getIVwPtr()->origin());
-    backAcc.advance(nCols - 1, nRows - 1);
-    unsigned int nColsToSwap = nCols;
-    const unsigned int nRowsToSwap = (nRows + 1) / 2;
+void coaddKaiser::reflectImage(afwImage::Image<PixelType> &image) {
+    typedef afw::Image::Image<PixelType> ImageT;
+    
+    const unsigned int nFullRowsToSwap = nRows / 2;
     const bool oddNRows = (nRows % 2 != 0);
-    for (unsigned int row = 0; row < nRowsToSwap; ++row) {
-        PixelType *frontPtr = &(*frontAcc);
-        PixelType *backPtr = &(*backAcc);
-        if (oddNRows && (row == nRowsToSwap - 1)) {
-            nColsToSwap = nCols / 2;
+     // use x_at(xLast, y) instead of row_end(y) to get the reverse row iterator
+     // because row_end(y) starts one beyond the last pixel
+    const int xLast = image.getWidth() - 1;
+    for (int yFwd = 0, yRev = image.getHeight() - 1; yFwd < nFullRowsToSwap; ++yFwd, --yRev) {
+        for (ImageT::x_iterator fwdPtr = image.row_begin(yFwd), revPtr = image.x_at(xLast, yRev);
+            fwdPtr != image.row_end(yFwd); ++fwdPtr, --revPtr) {
+            std::swap(*fwdPtr, *revPtr);
         }
-        for (unsigned int col = 0; col < nColsToSwap; ++col) {
-            PixelType temp = *frontPtr;
-            *frontPtr = *backPtr;
-            *backPtr = temp;
+    }
+    if (oddNRows) {
+        const unsigned int yCtr = nFullRowsToSwap;
+        const unsigned int halfCols = image.getWidth() / 2;
+        ImageT::x_iterator fwdEndCtr = image.x_at(halfCols + 1, yCtr); // +1 for 1 beyond last pixel to swap
+        for (ImageT::x_iterator fwdPtr = image.row_begin(yCtr), revPtr = image.x_at(xLast, yCtr);
+            fwdPtr != fwdEndCtr; ++fwdPtr, --revPtr) {
+            std::swap(*fwdPtr, *revPtr);
         }
     }
 }

@@ -26,14 +26,13 @@ int main(int argc, char **argv) {
         }
         
         // read in fits file
-        lsst::afw::image::Exposure<pixelType, lsst::afw::image::maskPixelType> scienceExposure;
-        scienceExposure.readFits(argv[1]);
+        lsst::afw::image::Exposure<pixelType, lsst::afw::image::MaskPixel> scienceExposure(argv[1]);
         
         // create psf kernel
         double sigma = fwhm / 2.35;
         lsst::afw::math::DoubleGaussianFunction2<double> psfFunc(sigma, sigma*10.0, 0.1);
         int kSize = static_cast<int>(2.0 * fwhm);
-        lsst::afw::math::AnalyticKernel psfKernel(psfFunc, kSize, kSize);
+        lsst::afw::math::AnalyticKernel psfKernel(kSize, kSize, psfFunc);
         lsst::coadd::kaiser::CoaddComponent(scienceExposure, psfKernel);
         
         std::cout << "Got CoaddComponent" << std::endl;
