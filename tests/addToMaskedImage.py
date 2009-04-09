@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Test lsst.coadd.kaiser.addToMaskedImage
 """
@@ -45,13 +46,13 @@ class addToMaskedImageTestCase(unittest.TestCase):
         coaddKaiser.addToMaskedImage(outMaskedImage, inMaskedImage, badPixelMask)
         computedOutArrays = imTestUtils.arraysFromMaskedImage(outMaskedImage)
         
-        badMaskArr = (inArrays[2] & badPixelMask) != 0
+        badMaskArr = (inArrays[1] & badPixelMask) != 0
         refOutArrays = (
             numpy.where(badMaskArr, origOutArrays[0], origOutArrays[0] + inArrays[0]),
-            numpy.where(badMaskArr, origOutArrays[1], origOutArrays[1] + inArrays[1]),
-            numpy.where(badMaskArr, origOutArrays[2], origOutArrays[2] | inArrays[2]),
+            numpy.where(badMaskArr, origOutArrays[1], origOutArrays[1] | inArrays[1]),
+            numpy.where(badMaskArr, origOutArrays[2], origOutArrays[2] + inArrays[2]),
         )
-        for name, ind in (("image", 0), ("variance", 1), ("mask", 2)):
+        for name, ind in (("image", 0), ("mask", 1), ("variance", 2)):
             if not numpy.allclose(computedOutArrays[ind], refOutArrays[ind]):
                 errMsgList = (
                     "Computed %s does not match reference for badPixelMask=%s:" % (name, badPixelMask),
@@ -71,7 +72,7 @@ class addToMaskedImageTestCase(unittest.TestCase):
         """Test addToMaskedImage on afwdata small image
         """
         inMaskedImage = afwImage.MaskedImageF(inFilePathSmall)
-        outMaskedImage = afwImage.MaskedImageF(inMaskedImage.getCols(), inMaskedImage.getRows())
+        outMaskedImage = afwImage.MaskedImageF(inMaskedImage.getWidth(), inMaskedImage.getHeight())
         for badPixelMask in (0, 0xF, 0xFF, 0xFFF, 0xFFFF):
             self.referenceTest(outMaskedImage, inMaskedImage, badPixelMask)
 

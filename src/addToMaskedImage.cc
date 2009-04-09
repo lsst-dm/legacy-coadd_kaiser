@@ -8,6 +8,9 @@
 *
 * @todo: move to a better location
 */
+#include "boost/cstdint.hpp"
+
+#include "lsst/pex/exceptions.h"
 #include "lsst/coadd/kaiser/addToMaskedImage.h"
 
 namespace pexExcept = lsst::pex::exceptions;

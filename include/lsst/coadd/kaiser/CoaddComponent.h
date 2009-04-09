@@ -37,13 +37,13 @@ namespace kaiser {
         );
         virtual ~CoaddComponent() {};
 
-        void addToCoadd(ExposureD &coadd);
+        void addToCoadd(ExposureD const &coadd);
         
-        double getSigmaSq() { return _sigmaSq; }
+        double getSigmaSq() const { return _sigmaSq; }
 
-        ExposureD getBlurredExposure() { return _blurredExposure; }
+        ExposureD getBlurredExposure() const { return _blurredExposure; }
         
-        lsst::afw::image::Image<double> getBlurredPsfImage() { return _blurredPsfImage; };
+        lsst::afw::image::Image<double> getBlurredPsfImage() const { return _blurredPsfImage; };
         
     private:
         double _sigmaSq;
@@ -63,8 +63,6 @@ namespace kaiser {
             lsst::afw::math::Kernel const &psfKernel
         );
     };
-
-    void reflectImage(lsst::afw::image::Image<CoaddComponent::pixelType> &image);
 
 }}} // lsst::coadd::kaiser
 

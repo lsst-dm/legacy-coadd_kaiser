@@ -41,9 +41,8 @@ class CoaddComponentTestCase(unittest.TestCase):
         Make sure swig interface works
         """
         testExposure = afwImage.ExposureF(inFilePathSmall)
-        blankImage = afwImage.ImageD(5, 5)
-        blankImage.set(0)
-        nullKernel = afwMath.DeltaFunctionKernel(2, 2, 5, 5)
+        blankImage = afwImage.ImageD(5, 5, 0)
+        nullKernel = afwMath.DeltaFunctionKernel(5, 5, afwImage.PointI(2, 2))
         print "testExposure=%r" % (testExposure,)
         coaddComp = coaddKaiser.CoaddComponent(testExposure, nullKernel)
         #... now verify that we got the right component back

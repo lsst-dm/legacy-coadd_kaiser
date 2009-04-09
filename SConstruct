@@ -9,7 +9,11 @@ env = scons.makeEnv(
     "coadd_kaiser",
     r"$HeadURL: svn+ssh://svn.lsstcorp.org/DMS/coadd/kaiser/trunk/SConstruct $",
     [
+        ["boost", "boost/version.hpp", "boost_system:C++"],
         ["boost", "boost/version.hpp", "boost_filesystem:C++"],
+        ["boost", "boost/regex.hpp", "boost_regex:C++"],
+        ["boost", "boost/serialization/base_object.hpp", "boost_serialization:C++"],
+        ["boost", "boost/tr1/cmath.hpp", "boost_math_c99:C++"],
         ["python", "Python.h"],
         ["cfitsio", "fitsio.h", "m cfitsio", "ffopen"],
         ["wcslib", "wcslib/wcs.h", "m wcs"], # remove m once SConsUtils bug fixed
@@ -33,7 +37,7 @@ env.libs["coadd_kaiser"] += env.getlibs("boost wcslib cfitsio minuit gsl utils d
 #
 # Build/install things
 #
-for d in Split(". doc examples lib python/lsst/coadd/kaiser tests"):
+for d in Split("doc examples lib python/lsst/coadd/kaiser tests"):
     SConscript(os.path.join(d, "SConscript"))
 
 env['IgnoreFiles'] = r"(~$|\.pyc$|^\.svn$|\.o$)"

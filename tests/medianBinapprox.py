@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Test lsst.coadd.kaiser.medianBinapprox
 
@@ -34,11 +35,12 @@ inFilePathSmallImage = os.path.join(dataDir, InputImageNameSmall)
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 def refMedian(inArr):
+    """Compute the median of an array of any shape.
+    """
     nPts = inArr.size
     if nPts == 0:
         raise RuntimeError("image array has no pixels")
-    arrCopy = numpy.array(inArr)
-    linArr = arrCopy.reshape([nPts])
+    linArr = inArr.flatten()
     linArr.sort()
     ctrInd = (nPts-1)//2
     if nPts % 2 == 0:
