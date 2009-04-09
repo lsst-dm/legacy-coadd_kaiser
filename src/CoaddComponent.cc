@@ -25,8 +25,7 @@ namespace {
      * @brief Reflect an image in place.
      */
     void reflectImage(afwImage::Image<coaddKaiser::CoaddComponent::pixelType> &image) {
-        typedef afwImage::Image<coaddKaiser::CoaddComponent::pixelType> ImageT;
-        typedef ImageT::x_iterator XIterator;
+        typedef coaddKaiser::CoaddComponent::ImageCC::x_iterator XIteratorCC;
         
         const unsigned int nRows = image.getHeight();
         const unsigned int nFullRowsToSwap = nRows / 2;
@@ -35,7 +34,7 @@ namespace {
          // because row_end(y) starts one beyond the last pixel
         const int xLast = static_cast<int>(image.getWidth()) - 1;
         for (int yFwd = 0, yRev = image.getHeight() - 1; yFwd < nFullRowsToSwap; ++yFwd, --yRev) {
-            for (XIterator fwdPtr = image.row_begin(yFwd), revPtr = image.x_at(xLast, yRev);
+            for (XIteratorCC fwdPtr = image.row_begin(yFwd), revPtr = image.x_at(xLast, yRev);
                 fwdPtr != image.row_end(yFwd); ++fwdPtr, --revPtr) {
                 std::swap(*fwdPtr, *revPtr);
             }
@@ -43,9 +42,9 @@ namespace {
         if (oddNRows) {
             const unsigned int yCtr = nFullRowsToSwap;
             const unsigned int halfCols = image.getWidth() / 2;
-            XIterator const fwdEndCtr = image.x_at(halfCols + 1, yCtr); // +1 is for 1 beyond last pixel to swap
-            XIterator fwdPtr = image.row_begin(yCtr);
-            XIterator revPtr = image.x_at(xLast, yCtr);
+            XIteratorCC const fwdEndCtr = image.x_at(halfCols + 1, yCtr); // +1 is for 1 beyond last pixel to swap
+            XIteratorCC fwdPtr = image.row_begin(yCtr);
+            XIteratorCC revPtr = image.x_at(xLast, yCtr);
             for ( ; fwdPtr != fwdEndCtr; ++fwdPtr, --revPtr) {
                 std::swap(*fwdPtr, *revPtr);
             }
@@ -83,7 +82,7 @@ coaddKaiser::CoaddComponent::CoaddComponent(
     computeBlurredExposure(scienceExposure, psfKernel);
 };
         
-void coaddKaiser::CoaddComponent::addToCoadd(ExposureD const &coadd) {
+void coaddKaiser::CoaddComponent::addToCoadd(ExposureCC const &coadd) {
     throw LSST_EXCEPT(pexExcept::RuntimeErrorException, "Not implemented");
 };
 
@@ -95,15 +94,15 @@ void coaddKaiser::CoaddComponent::addToCoadd(ExposureD const &coadd) {
 void coaddKaiser::CoaddComponent::computeSigmaSq(
     ExposureF const &scienceExposure    ///< science Exposure
 ) {
-    typedef afwImage::MaskedImage<float, afwImage::MaskPixel>::x_iterator XIterator;
-    typedef afwImage::MaskedImage<float, afwImage::MaskPixel>::y_iterator YIterator;
+    typedef afwImage::MaskedImage<float, afwImage::MaskPixel, lsst::afw::image::VariancePixel> MaskedImageF;
+    typedef MaskedImageF::x_iterator XIteratorF;
 
     MaskedImageF scienceMI(scienceExposure.getMaskedImage());
     // compute a vector containing only the good pixels, then take the median of that
     std::vector<double> varianceList(scienceMI.getHeight() * scienceMI.getWidth());
     std::vector<double>::iterator varIter = varianceList.begin();
     for (int y = 0; y != scienceMI.getHeight(); ++y) {
-        for (XIterator ptr = scienceMI.row_begin(y); ptr != scienceMI.row_end(y); ++ptr) {
+        for (XIteratorF ptr = scienceMI.row_begin(y); ptr != scienceMI.row_end(y); ++ptr) {
             if (ptr.mask() != 0) {
                 continue;
             }

@@ -8,8 +8,6 @@
 *
 * @author Russell Owen
 */
-#include <vector>
-
 #include "lsst/daf/data/LsstBase.h"
 #include "lsst/afw/image.h"
 #include "lsst/afw/math.h"
@@ -19,17 +17,20 @@ namespace coadd {
 namespace kaiser {
     
     /**
-     * @brief One component (processed ExposureD) of a Kaiser coadd
+     * @brief One component (processed Exposure) of a Kaiser coadd
      *
      * @ingroup coadd::kaiser
      */
     class CoaddComponent : public lsst::daf::data::LsstBase {
     public:
         typedef double pixelType; // pixel type for blurred science exposure
-        typedef lsst::afw::image::Exposure<float, lsst::afw::image::MaskPixel> ExposureF;
-        typedef lsst::afw::image::MaskedImage<float, lsst::afw::image::MaskPixel> MaskedImageF;
-        typedef lsst::afw::image::Exposure<pixelType, lsst::afw::image::MaskPixel> ExposureD;
-        typedef lsst::afw::image::MaskedImage<pixelType, lsst::afw::image::MaskPixel> MaskedImageD;
+        typedef lsst::afw::image::Exposure<float, lsst::afw::image::MaskPixel,
+            lsst::afw::image::VariancePixel> ExposureF;
+        typedef lsst::afw::image::MaskedImage<float, lsst::afw::image::MaskPixel,
+            lsst::afw::image::VariancePixel> MaskedImageF;
+        typedef lsst::afw::image::Exposure<pixelType, lsst::afw::image::MaskPixel,
+            lsst::afw::image::VariancePixel> ExposureCC;
+        typedef lsst::afw::image::Image<pixelType> ImageCC;
 
         CoaddComponent(
             ExposureF const &scienceExposure,
@@ -37,18 +38,18 @@ namespace kaiser {
         );
         virtual ~CoaddComponent() {};
 
-        void addToCoadd(ExposureD const &coadd);
+        void addToCoadd(ExposureCC const &coadd);
         
         double getSigmaSq() const { return _sigmaSq; }
 
-        ExposureD getBlurredExposure() const { return _blurredExposure; }
+        ExposureCC getBlurredExposure() const { return _blurredExposure; }
         
-        lsst::afw::image::Image<double> getBlurredPsfImage() const { return _blurredPsfImage; };
+        ImageCC getBlurredPsfImage() const { return _blurredPsfImage; };
         
     private:
         double _sigmaSq;
-        ExposureD _blurredExposure;
-        lsst::afw::image::Image<double> _blurredPsfImage;
+        ExposureCC _blurredExposure;
+        ImageCC _blurredPsfImage;
         
         void computeSigmaSq(
             ExposureF const &scienceExposure
