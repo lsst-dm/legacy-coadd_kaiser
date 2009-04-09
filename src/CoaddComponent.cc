@@ -27,13 +27,17 @@ namespace {
     void reflectImage(afwImage::Image<coaddKaiser::CoaddComponent::pixelType> &image) {
         typedef coaddKaiser::CoaddComponent::ImageCC::x_iterator XIteratorCC;
         
-        const unsigned int nRows = image.getHeight();
-        const unsigned int nFullRowsToSwap = nRows / 2;
+        if ((image.getHeight() < 1) || (image.getWidth() < 1)) {
+            throw LSST_EXCEPT(pexExcept::RangeErrorException, "Image width and/or height is 0");
+        }
+        
+        const int nRows = static_cast<int>(image.getHeight());
+        const int nFullRowsToSwap = nRows / 2;
         const bool oddNRows = (nRows % 2 != 0);
          // use x_at(xLast, y) instead of row_end(y) to get the reverse row iterator
          // because row_end(y) starts one beyond the last pixel
         const int xLast = static_cast<int>(image.getWidth()) - 1;
-        for (int yFwd = 0, yRev = image.getHeight() - 1; yFwd < nFullRowsToSwap; ++yFwd, --yRev) {
+        for (int yFwd = 0, yRev = nRows - 1; yFwd < nFullRowsToSwap; ++yFwd, --yRev) {
             for (XIteratorCC fwdPtr = image.row_begin(yFwd), revPtr = image.x_at(xLast, yRev);
                 fwdPtr != image.row_end(yFwd); ++fwdPtr, --revPtr) {
                 std::swap(*fwdPtr, *revPtr);
@@ -154,8 +158,7 @@ void coaddKaiser::CoaddComponent::computeBlurredExposure(
     ExposureF const &scienceExposure,   ///< science exposure
     afwMath::Kernel const &psfKernel    ///< PSF kernel
 ) {
-    // getMaskPlane should be a static function, but meanwhile...
-    int edgeBit = scienceExposure.getMaskedImage().getMask()->getMaskPlane("EDGE");
+    int edgeBit = ExposureF::MaskedImageT::Mask::getPlaneBitMask("EDGE");
     afwMath::convolve(_blurredExposure.getMaskedImage(), scienceExposure.getMaskedImage(), psfKernel, edgeBit, false);
     if (scienceExposure.hasWcs()) {
         _blurredExposure.setWcs(*scienceExposure.getWcs());
