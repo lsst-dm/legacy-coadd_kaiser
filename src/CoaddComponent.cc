@@ -78,8 +78,8 @@ coaddKaiser::CoaddComponent::CoaddComponent(
 ) :
     LsstBase(typeid(this)),
     _sigmaSq(0),
-    _blurredExposure(scienceExposure.getMaskedImage().getWidth(), scienceExposure.getMaskedImage().getHeight()),
-    _blurredPsfImage(psfKernel.getWidth() * 2 - 1, psfKernel.getHeight() * 2 - 1)
+    _blurredExposure(scienceExposure.getWidth(), scienceExposure.getHeight()),
+    _blurredPsfImage(psfKernel.getWidth() * 2 - 1, psfKernel.getHeight() * 2 - 1, 0)
 {
     computeSigmaSq(scienceExposure);
     computeBlurredPsf(psfKernel);
@@ -98,14 +98,13 @@ void coaddKaiser::CoaddComponent::addToCoadd(ExposureCC const &coadd) {
 void coaddKaiser::CoaddComponent::computeSigmaSq(
     ExposureF const &scienceExposure    ///< science Exposure
 ) {
-    typedef afwImage::MaskedImage<float, afwImage::MaskPixel, lsst::afw::image::VariancePixel> MaskedImageF;
-    typedef MaskedImageF::x_iterator XIteratorF;
+    typedef ExposureF::MaskedImageT::x_iterator XIteratorF;
 
-    MaskedImageF scienceMI(scienceExposure.getMaskedImage());
+    ExposureF::MaskedImageT scienceMI = scienceExposure.getMaskedImage();
     // compute a vector containing only the good pixels, then take the median of that
     std::vector<double> varianceList(scienceMI.getHeight() * scienceMI.getWidth());
     std::vector<double>::iterator varIter = varianceList.begin();
-    for (int y = 0; y != scienceMI.getHeight(); ++y) {
+    for (int y = 0, yEnd = scienceMI.getHeight(); y < yEnd; ++y) {
         for (XIteratorF ptr = scienceMI.row_begin(y); ptr != scienceMI.row_end(y); ++ptr) {
             if (ptr.mask() != 0) {
                 continue;
@@ -130,13 +129,12 @@ void coaddKaiser::CoaddComponent::computeSigmaSq(
 void coaddKaiser::CoaddComponent::computeBlurredPsf(
     afwMath::Kernel const &psfKernel    ///< PSF kernel
 ) {
-    unsigned int psfWidth = psfKernel.getWidth();
-    unsigned int psfHeight = psfKernel.getHeight();
-    unsigned int blurredPsfWidth = 2 * psfWidth - 1;
-    unsigned int blurredPsfHeight = 2 * psfHeight - 1;
+    int const psfWidth = psfKernel.getWidth();
+    int const psfHeight = psfKernel.getHeight();
+    int const blurredPsfWidth = 2 * psfWidth - 1;
+    int const blurredPsfHeight = 2 * psfHeight - 1;
     afwImage::Image<double> reflPsfImage(psfWidth, psfHeight);
-    double dumImSum;
-    psfKernel.computeImage(reflPsfImage, dumImSum, true);
+    psfKernel.computeImage(reflPsfImage, true);
     reflectImage(reflPsfImage);
     afwImage::Image<double> paddedReflPsfImage(blurredPsfWidth, blurredPsfHeight, 0);
     afwImage::BBox centerBox(afwImage::PointI(psfKernel.getCtrX(), psfKernel.getCtrY()), psfWidth, psfHeight);
@@ -159,8 +157,11 @@ void coaddKaiser::CoaddComponent::computeBlurredExposure(
     afwMath::Kernel const &psfKernel    ///< PSF kernel
 ) {
     int edgeBit = ExposureF::MaskedImageT::Mask::getPlaneBitMask("EDGE");
-    afwMath::convolve(_blurredExposure.getMaskedImage(), scienceExposure.getMaskedImage(), psfKernel, edgeBit, false);
+    ExposureCC::MaskedImageT blurredMI = _blurredExposure.getMaskedImage();
+    ExposureF::MaskedImageT const scienceMI = scienceExposure.getMaskedImage();
+    afwMath::convolve(blurredMI, scienceMI, psfKernel, true, edgeBit);
     if (scienceExposure.hasWcs()) {
-        _blurredExposure.setWcs(*scienceExposure.getWcs());
+        afwImage::Wcs::Ptr scienceWcsPtr = scienceExposure.getWcs();
+        _blurredExposure.setWcs(*scienceWcsPtr);
     }
 };
