@@ -131,17 +131,20 @@ void coaddKaiser::CoaddComponent::computeBlurredPsf(
 ) {
     int const psfWidth = psfKernel.getWidth();
     int const psfHeight = psfKernel.getHeight();
-    int const blurredPsfWidth = 2 * psfWidth - 1;
-    int const blurredPsfHeight = 2 * psfHeight - 1;
-    afwImage::Image<double> reflPsfImage(psfWidth, psfHeight);
+    int const paddedWidth =  3 * psfWidth - 2;
+    int const paddedHeight = 3 * psfHeight - 2;
+    // initialize padded reflected psf image to 0 because only the center is set by computeImage
+    afwImage::Image<double> paddedReflPsfImage(paddedWidth, paddedHeight, 0);
+    afwImage::BBox reflPsfBBox(afwImage::PointI(psfWidth-1, psfHeight-1), psfWidth, psfHeight);
+    afwImage::Image<double> reflPsfImage(paddedReflPsfImage, reflPsfBBox);
     psfKernel.computeImage(reflPsfImage, true);
     reflectImage(reflPsfImage);
-    afwImage::Image<double> paddedReflPsfImage(blurredPsfWidth, blurredPsfHeight, 0);
-    afwImage::BBox centerBox(afwImage::PointI(psfKernel.getCtrX(), psfKernel.getCtrY()), psfWidth, psfHeight);
-    afwImage::Image<double>(paddedReflPsfImage, centerBox, false) <<= reflPsfImage;
-    
-    // convolve zero-padded reflected image of psf kernel with psf kernel
-    afwMath::convolve(_blurredPsfImage, paddedReflPsfImage, psfKernel, true);
+    // no need to initialize padded blurred PSF image because all pixels are set
+    afwImage::Image<double> paddedBlurredPsfImage(paddedWidth, paddedHeight);
+    afwMath::convolve(paddedBlurredPsfImage, paddedReflPsfImage, psfKernel, true);
+    afwImage::BBox blurredPsfBBox(afwImage::PointI(psfKernel.getCtrX(), psfKernel.getCtrY()),
+        _blurredPsfImage.getWidth(), _blurredPsfImage.getHeight());
+    _blurredPsfImage <<= afwImage::Image<double>(paddedBlurredPsfImage, blurredPsfBBox);
 };
 
 /**
@@ -159,6 +162,8 @@ void coaddKaiser::CoaddComponent::computeBlurredExposure(
     int edgeBit = ExposureF::MaskedImageT::Mask::getPlaneBitMask("EDGE");
     ExposureCC::MaskedImageT blurredMI = _blurredExposure.getMaskedImage();
     ExposureF::MaskedImageT const scienceMI = scienceExposure.getMaskedImage();
+    scienceExposure.writeFits("scienceExposure");
+    _blurredExposure.writeFits("blurredExposure");
     afwMath::convolve(blurredMI, scienceMI, psfKernel, true, edgeBit);
     if (scienceExposure.hasWcs()) {
         afwImage::Wcs::Ptr scienceWcsPtr = scienceExposure.getWcs();
