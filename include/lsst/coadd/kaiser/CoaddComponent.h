@@ -38,11 +38,6 @@ namespace kaiser {
         );
         virtual ~CoaddComponent() {};
 
-        virtual int coaddKaiser::CoaddComponent::addToCoadd(
-            ExposureCC const &coadd, afwMath::SeparableKernel warpingKernel) const;
-
-        virtual void addToCoadd(ExposureCC const &coadd);
-        
         double getSigmaSq() const { return _sigmaSq; }
 
         ExposureCC getBlurredExposure() const { return _blurredExposure; }

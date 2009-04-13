@@ -87,30 +87,6 @@ coaddKaiser::CoaddComponent::CoaddComponent(
 };
 
 /**
- * \brief Add this coadd component to a coadd Exposure
- *
- * Add this coadd component to a coadd Exposure. Works as follows:
- * * Spatially warp the coadd component so its WCS matches that of coadd
- * * Add the unmasked overlapping pixels
- * * Return the number of unmasked overlapping pixels
- *
- * \raise pexExcept::InvalidParameterException if coadd has no WCS
- */
-int coaddKaiser::CoaddComponent::addToCoadd(
-    ExposureCC const &coadd,    ///< Exposure to which to add this coadd component
-    afwMath::SeparableKernel warpingKernel  ///< kernel for warping this coadd component to match coadd's WCS
-) const {
-    if (!coadd.hasWcs()) {
-        throw LSST_EXCEPT(pexExcept::InvalidParameterException, "coadd has no WCS");
-    }
-    afwImage::Wcs::Ptr wcsPtr = coadd.getWcs();
-    ExposureCC warpedExposure(coadd.getWidth(), coadd.getHeight(), *wcsPtr);
-    int numGoodPix = afwMath::warpExposure(warpedExposure, _blurredExposure, warpingKernel);
-    addToMaskedImage(coadd, warpedExposure, 0xFFFF);
-    return numGoodPix;
-};
-
-/**
  * \brief compute _sigmaSq
  *
  * \ingroup coadd::kaiser
