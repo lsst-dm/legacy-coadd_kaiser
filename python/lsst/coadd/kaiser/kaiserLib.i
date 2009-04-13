@@ -26,9 +26,14 @@ Python interface to lsst::coadd::kaiser functions and classes
 %template(medianBinapproxImage)  lsst::coadd::kaiser::medianBinapproxImage<float>;
 
 %include "lsst/coadd/kaiser/addToMaskedImage.h"
-%template(addToMaskedImage) lsst::coadd::kaiser::addToMaskedImage<double, lsst::afw::image::MaskPixel, lsst::afw::image::VariancePixel>;
-%template(addToMaskedImage) lsst::coadd::kaiser::addToMaskedImage<float, lsst::afw::image::MaskPixel, lsst::afw::image::VariancePixel>;
-%template(addToMaskedImage) lsst::coadd::kaiser::addToMaskedImage<int, lsst::afw::image::MaskPixel, lsst::afw::image::VariancePixel>;
-%template(addToMaskedImage) lsst::coadd::kaiser::addToMaskedImage<boost::uint16_t, lsst::afw::image::MaskPixel, lsst::afw::image::VariancePixel>;
+%define %ADDTOMASKEDIMAGE(TYPE)
+    %template(addToMaskedImage) lsst::coadd::kaiser::addToMaskedImage<TYPE,
+        lsst::afw::image::MaskPixel, lsst::afw::image::VariancePixel>;
+%enddef
+%ADDTOMASKEDIMAGE(double);
+%ADDTOMASKEDIMAGE(float);
+%ADDTOMASKEDIMAGE(int);
+%ADDTOMASKEDIMAGE(boost::uint16_t);
 
+SWIG_SHARED_PTR_DERIVED(CoaddComponent, lsst::daf::base::Citizen, lsst::coadd::kaiser::CoaddComponent)
 %include "lsst/coadd/kaiser/CoaddComponent.h"

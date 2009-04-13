@@ -76,7 +76,7 @@ coaddKaiser::CoaddComponent::CoaddComponent(
     ExposureF const &scienceExposure,   ///< background-subtracted science Exposure
     afwMath::Kernel const &psfKernel    ///< PSF of science Exposure
 ) :
-    LsstBase(typeid(this)),
+    lsst::daf::base::Citizen(typeid(this)),
     _sigmaSq(0),
     _blurredExposure(scienceExposure.getWidth(), scienceExposure.getHeight()),
     _blurredPsfImage(psfKernel.getWidth() * 2 - 1, psfKernel.getHeight() * 2 - 1, 0)

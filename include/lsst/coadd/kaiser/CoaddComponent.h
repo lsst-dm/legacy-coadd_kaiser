@@ -8,7 +8,7 @@
 *
 * @author Russell Owen
 */
-#include "lsst/daf/data/LsstBase.h"
+#include "lsst/daf/base/Citizen.h"
 #include "lsst/afw/image.h"
 #include "lsst/afw/math.h"
 
@@ -21,7 +21,7 @@ namespace kaiser {
      *
      * @ingroup coadd::kaiser
      */
-    class CoaddComponent : public lsst::daf::data::LsstBase {
+    class CoaddComponent : public lsst::daf::base::Citizen {
     public:
         typedef double pixelType; // pixel type for blurred science exposure
         typedef lsst::afw::image::Exposure<float, lsst::afw::image::MaskPixel,
