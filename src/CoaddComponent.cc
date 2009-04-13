@@ -1,6 +1,6 @@
 // -*- LSST-C++ -*-
 /**
-* @brief Component of Kaiser coadd.
+* \brief Component of Kaiser coadd.
 *
 * @file
 *
@@ -22,7 +22,7 @@ namespace coaddKaiser = lsst::coadd::kaiser;
 namespace {
 
     /**
-     * @brief Reflect an image in place.
+     * \brief Reflect an image in place.
      */
     void reflectImage(afwImage::Image<coaddKaiser::CoaddComponent::pixelType> &image) {
         typedef coaddKaiser::CoaddComponent::ImageCC::x_iterator XIteratorCC;
@@ -58,19 +58,19 @@ namespace {
 } // anonymous namespace
 
 /**
- * @brief CoaddComponent constructor
+ * \brief CoaddComponent constructor
  *
- * @todo: handle asymmetric kernels properly. scienceExposure should be convolved with * the *reflected* PSF,
+ * \todo: handle asymmetric kernels properly. scienceExposure should be convolved with * the *reflected* PSF,
  * but this requires significant extra work (perhaps new convolution functions or kernels) to handle
  * spatially varying kernels. For now, for expediency, I allow spatially varying kernels but convolve with
  * the un-reflected PSF.
- * @todo: address Robert Lupton's concerns about handling the background. He feels we should not
+ * \todo: address Robert Lupton's concerns about handling the background. He feels we should not
  * subtract the background from science exposures before adding them to the template, but I fail to see
  * how we can avoid doing so. Otherwise the background of the template will vary pixel by pixel
  * depending on how many good pixels from the various science exposures contributed to a give pixel
  * of the template.
  *
- * @ingroup coadd::kaiser
+ * \ingroup coadd::kaiser
  */ 
 coaddKaiser::CoaddComponent::CoaddComponent(
     ExposureF const &scienceExposure,   ///< background-subtracted science Exposure
@@ -85,15 +85,35 @@ coaddKaiser::CoaddComponent::CoaddComponent(
     computeBlurredPsf(psfKernel);
     computeBlurredExposure(scienceExposure, psfKernel);
 };
-        
-void coaddKaiser::CoaddComponent::addToCoadd(ExposureCC const &coadd) {
-    throw LSST_EXCEPT(pexExcept::RuntimeErrorException, "Not implemented");
+
+/**
+ * \brief Add this coadd component to a coadd Exposure
+ *
+ * Add this coadd component to a coadd Exposure. Works as follows:
+ * * Spatially warp the coadd component so its WCS matches that of coadd
+ * * Add the unmasked overlapping pixels
+ * * Return the number of unmasked overlapping pixels
+ *
+ * \raise pexExcept::InvalidParameterException if coadd has no WCS
+ */
+int coaddKaiser::CoaddComponent::addToCoadd(
+    ExposureCC const &coadd,    ///< Exposure to which to add this coadd component
+    afwMath::SeparableKernel warpingKernel  ///< kernel for warping this coadd component to match coadd's WCS
+) const {
+    if (!coadd.hasWcs()) {
+        throw LSST_EXCEPT(pexExcept::InvalidParameterException, "coadd has no WCS");
+    }
+    afwImage::Wcs::Ptr wcsPtr = coadd.getWcs();
+    ExposureCC warpedExposure(coadd.getWidth(), coadd.getHeight(), *wcsPtr);
+    int numGoodPix = afwMath::warpExposure(warpedExposure, _blurredExposure, warpingKernel);
+    addToMaskedImage(coadd, warpedExposure, 0xFFFF);
+    return numGoodPix;
 };
 
 /**
- * @brief compute _sigmaSq
+ * \brief compute _sigmaSq
  *
- * @ingroup coadd::kaiser
+ * \ingroup coadd::kaiser
  */
 void coaddKaiser::CoaddComponent::computeSigmaSq(
     ExposureF const &scienceExposure    ///< science Exposure
@@ -122,9 +142,9 @@ void coaddKaiser::CoaddComponent::computeSigmaSq(
 };
         
 /**
- * @brief Compute _blurredPsfImage = psfKernel convolved with psfKernel(-r)
+ * \brief Compute _blurredPsfImage = psfKernel convolved with psfKernel(-r)
  *
- * @ingroup coadd::kaiser
+ * \ingroup coadd::kaiser
  */
 void coaddKaiser::CoaddComponent::computeBlurredPsf(
     afwMath::Kernel const &psfKernel    ///< PSF kernel
@@ -148,12 +168,12 @@ void coaddKaiser::CoaddComponent::computeBlurredPsf(
 };
 
 /**
- * @brief Compute _blurredEposure = scienceExposure convolved with psfKernel
+ * \brief Compute _blurredEposure = scienceExposure convolved with psfKernel
  *
- * @warning If you want scienceExposure convolved with psfKernel(-r)
+ * \warning If you want scienceExposure convolved with psfKernel(-r)
  * (the standard Kaiser thing to do) then feed in psfKernel(-r)
  *
- * @ingroup coadd::kaiser
+ * \ingroup coadd::kaiser
  */
 void coaddKaiser::CoaddComponent::computeBlurredExposure(
     ExposureF const &scienceExposure,   ///< science exposure

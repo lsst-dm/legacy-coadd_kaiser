@@ -32,13 +32,16 @@ namespace kaiser {
             lsst::afw::image::VariancePixel> ExposureCC;
         typedef lsst::afw::image::Image<pixelType> ImageCC;
 
-        CoaddComponent(
+        explicit CoaddComponent(
             ExposureF const &scienceExposure,
             lsst::afw::math::Kernel const &psfKernel
         );
         virtual ~CoaddComponent() {};
 
-        void addToCoadd(ExposureCC const &coadd);
+        virtual int coaddKaiser::CoaddComponent::addToCoadd(
+            ExposureCC const &coadd, afwMath::SeparableKernel warpingKernel) const;
+
+        virtual void addToCoadd(ExposureCC const &coadd);
         
         double getSigmaSq() const { return _sigmaSq; }
 
