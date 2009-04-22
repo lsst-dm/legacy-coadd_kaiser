@@ -15,12 +15,14 @@ import numpy
 
 from lsst.daf.base import PropertySet
 import lsst.pex.logging as pexLog
+import lsst.pex.policy as pexPolicy
 import lsst.afw.image as afwImage
 import lsst.afw.math as afwMath
-import lsst.afw.detection as afwDet
+import lsst.afw.detection as afwDetect
 import lsst.afw.display.ds9 as ds9
 import lsst.meas.algorithms as measAlg
-import lsst.coadd.kaiser.MakeBlurredCoadd as kaiserMake
+import lsst.meas.algorithms.Psf # should be automatically imported, but oh well
+import lsst.sdqa as sdqa
 
 RadPerDeg = math.pi / 180.0
 
@@ -39,11 +41,8 @@ def makeBlankTemplateExposure(fromExposure):
     Warning:
     - The maskedImage must use FK5 J2000 coordinates for its WCS. This is NOT checked.
     """
-    def arrayFromCoord2(coord2):
-        return numpy.array([coord2.x(), coord2.y()])
-
     fromMaskedImage = fromExposure.getMaskedImage()
-    fromShape = numpy.array([fromMaskedImage.getCols(), fromMaskedImage.getRows()], dtype=int)
+    fromShape = numpy.array(fromMaskedImage.getDimensions(), dtype=int)
     fromCtr = (fromShape - 1) / 2
     fromWcs = fromExposure.getWcs()
 
@@ -52,45 +51,52 @@ def makeBlankTemplateExposure(fromExposure):
     templateMaskedImage.set((0,0,0))
     
     # make tangent-plane projection WCS for the template
-    raDecCtr = arrayFromCoord2(fromWcs.colRowToRaDec(fromCtr[0], fromCtr[1]))
-    raDecUp = arrayFromCoord2(fromWcs.colRowToRaDec(fromCtr[0], fromCtr[1]+1))
+    raDecCtr = numpy.array(fromWcs.xyToRaDec(fromCtr[0], fromCtr[1]))
+    raDecUp = numpy.array(fromWcs.xyToRaDec(fromCtr[0], fromCtr[1]+1))
     dRaDec = raDecUp - raDecCtr
     dRaDec[0] *= math.cos(raDecCtr[0] * RadPerDeg)
     fromDegPerPix = math.sqrt(dRaDec[0]**2 + dRaDec[1]**2)
     templateDegPerPix = fromDegPerPix / 2.0
     
-    templateMetaData = PropertySet.createPropertyNode("FitsMetaData")
-    templateMetaData.addProperty(PropertySet("EPOCH", 2000.0))
-    templateMetaData.addProperty(PropertySet("EQUINOX", 2000.0))
-    templateMetaData.addProperty(PropertySet("RADECSYS", "FK5"))
-    templateMetaData.addProperty(PropertySet("CTYPE1", "RA---TAN"))
-    templateMetaData.addProperty(PropertySet("CTYPE2", "DEC--TAN"))
-    templateMetaData.addProperty(PropertySet("CRPIX1", templateShape[0]/2))
-    templateMetaData.addProperty(PropertySet("CRPIX2", templateShape[1]/2))
-    templateMetaData.addProperty(PropertySet("CRVAL1", raDecCtr[0]))
-    templateMetaData.addProperty(PropertySet("CRVAL2", raDecCtr[1]))
-    templateMetaData.addProperty(PropertySet("CD1_1", templateDegPerPix))
-    templateMetaData.addProperty(PropertySet("CD1_2", 0.0))
-    templateMetaData.addProperty(PropertySet("CD2_1", 0.0))
-    templateMetaData.addProperty(PropertySet("CD2_2", templateDegPerPix))
-    templateWcs = afwImage.Wcs(templateMetaData)
+    templateMetadata = PropertySet()
+    templateMetadata.add("EPOCH", 2000.0)
+    templateMetadata.add("EQUINOX", 2000.0)
+    templateMetadata.add("RADECSYS", "FK5")
+    templateMetadata.add("CTYPE1", "RA---TAN")
+    templateMetadata.add("CTYPE2", "DEC--TAN")
+    templateMetadata.add("CRPIX1", templateShape[0]/2)
+    templateMetadata.add("CRPIX2", templateShape[1]/2)
+    templateMetadata.add("CRVAL1", raDecCtr[0])
+    templateMetadata.add("CRVAL2", raDecCtr[1])
+    templateMetadata.add("CD1_1", templateDegPerPix)
+    templateMetadata.add("CD1_2", 0.0)
+    templateMetadata.add("CD2_1", 0.0)
+    templateMetadata.add("CD2_2", templateDegPerPix)
+    templateWcs = afwImage.Wcs(templateMetadata)
     templateExposure = afwImage.ExposureD(templateMaskedImage, templateWcs)
     return templateExposure
 
 
-def subtractBackground(exposure):
+def subtractBackground(exposure, doDisplay = False):
     """Subtract the background from an Exposure
+    
+    Returns the background object returned by afwMath.makeBackground.
     """
     maskedImage = exposure.getMaskedImage()
-    
+    if doDisplay:
+        ds9.mtv(maskedImage)
     bkgControl = afwMath.BackgroundControl(afwMath.NATURAL_SPLINE)
     bkgControl.setNxSample(max(2, int(maskedImage.getWidth()/256) + 1))
     bkgControl.setNySample(max(2, int(maskedImage.getHeight()/256) + 1))
     bkgControl.sctrl.setNumSigmaClip(3)
     bkgControl.sctrl.setNumIter(3)
     
-    bkgObj = afwMath.makeBackground(maskedImage, bkgControl)
-    maskedImage -= bkgObj.getImageF()
+    im = maskedImage.getImage()
+    bkgObj = afwMath.makeBackground(im, bkgControl)
+    im -= bkgObj.getImageF()
+    if doDisplay:
+        ds9.mtv(maskedImage)
+    return bkgObj
 
 
 def detectSources(maskedImage, detectSourcesPolicy, doDisplay = False):
@@ -105,7 +111,7 @@ def detectSources(maskedImage, detectSourcesPolicy, doDisplay = False):
         minPixels:1 
         thresholdValue: 3
         thresholdType: "stdev"
-        psfPolicyPolicy: {
+        psfPolicy: {
             algorithm: "DoubleGaussian"
             width = 15
             height = 15
@@ -117,43 +123,43 @@ def detectSources(maskedImage, detectSourcesPolicy, doDisplay = False):
     psfPolicy is used to smooth the image before detecting sources.
     """
     # parse policy
-    psfPolicyPolicy = detectSourcesPolicy.getPolicy("psfPolicyPolicy")
-    psfPolicy = makePsf(psfPolicyPolicy)
+    psfPolicy = detectSourcesPolicy.getPolicy("psfPolicy")
+    psf = makePsf(psfPolicy)
 
     minPixels = detectSourcesPolicy.get("minPixels")
     thresholdValue = detectSourcesPolicy.get("thresholdValue")
     thresholdType = detectSourcesPolicy.get("thresholdType")
-    thresholdObj = afwDet.createThreshold(thresholdValue, thresholdType, True)    
+    thresholdObj = afwDetect.createThreshold(thresholdValue, thresholdType, True)    
     
-    convolvedImage = maskedImage.Factory(maskedImage.getDimensions())
-    convolvedImage.setXY0(maskedImage.getXY0())
+    smoothedMaskedImage = maskedImage.Factory(maskedImage.getDimensions())
+    smoothedMaskedImage.setXY0(maskedImage.getXY0())
 
     if doDisplay:
-        ds9.mtv(maskedImage)
+        ds9.mtv(smoothedMaskedImage)
         
     # Smooth the Image
-    psfPolicy.convolve(convolvedImage, maskedImage, convolvedImage.getMask().getMaskPlane("EDGE"))
+    psf.convolve(smoothedMaskedImage, maskedImage, True, smoothedMaskedImage.getMask().getMaskPlane("EDGE"))
 
     # Only search psf-smooth part of frame
-    llc = afwImg.PointI(psfPolicy.getKernel().getWidth()/2,  psfPolicy.getKernel().getHeight()/2)
-    urc = afwImg.PointI(convolvedImage.getWidth() - 1, convolvedImage.getHeight() - 1)
+    llc = afwImage.PointI(psf.getKernel().getWidth()/2,  psf.getKernel().getHeight()/2)
+    urc = afwImage.PointI(smoothedMaskedImage.getWidth() - 1, smoothedMaskedImage.getHeight() - 1)
     urc -= llc
-    bbox = afwImg.BBox(llc, urc)
-    middle = convolvedImage.Factory(convolvedImage, bbox)
+    bbox = afwImage.BBox(llc, urc)
+    middle = smoothedMaskedImage.Factory(smoothedMaskedImage, bbox)
    
-    detectionSet = afwDet.makeDetectionSet(middle, thresholdObj, "DETECTED", minPixels)
+    detectionSet = afwDetect.makeDetectionSet(middle, thresholdObj, "DETECTED", minPixels)
     # detectionSet only searched the middle but it belongs to the entire MaskedImage
-    detectionSet.setRegion(afwImg.BBox(afwImg.PointI(maskedImage.getX0(), maskedImage.getY0()),
+    detectionSet.setRegion(afwImage.BBox(afwImage.PointI(maskedImage.getX0(), maskedImage.getY0()),
                                        maskedImage.getWidth(), maskedImage.getHeight()));
 
     # Grow the detections into the edge by at least one pixel so that it sees the EDGE bit
     grow, isotropic = 1, False
-    detectionSet = afwDet.DetectionSetF(detectionSet, grow, isotropic)
+    detectionSet = afwDetect.DetectionSetF(detectionSet, grow, isotropic)
     detectionSet.setMask(maskedImage.getMask(), "DETECTED")
 
     return detectionSet
 
-def makePsf(self, psfPolicy):
+def makePsf(psfPolicy):
     params = []        
     params.append(psfPolicy.getString("algorithm"))
     params.append(psfPolicy.getInt("width"))
@@ -186,12 +192,12 @@ def measureSources(exposure, detectionSet, measureSourcesPolicy, doDisplay=False
     """
     psfPolicy = measureSourcesPolicy.getPolicy("psfPolicy")
     psf = makePsf(psfPolicy)
-    measureSources = measAlg.makeMeasureSources(exposure, measureSourcesPolicy, self.psf)
+    measureSources = measAlg.makeMeasureSources(exposure, measureSourcesPolicy, psf)
     
     footprints = detectionSet.getFootprints()
-    sourceList = afwDetection.SourceSet()
+    sourceList = afwDetect.SourceSet()
     for i in range(len(footprints)):
-        source = afwDetection.Source()
+        source = afwDetect.Source()
         sourceList.append(source)
     
         source.setId(i)
@@ -279,8 +285,9 @@ The policy controlling the parameters is makeBlurredCoadd_policy.paf
         indir = "."
 
     makeBlurredCoaddPolicyPath = "makeBlurredCoadd_policy.paf"
-    makeBlurredCoaddPolicy = policy.Policy.createPolicy(makeBlurredCoaddPolicyPath)
+    makeBlurredCoaddPolicy = pexPolicy.Policy.createPolicy(makeBlurredCoaddPolicyPath)
     detectSourcesPolicy = makeBlurredCoaddPolicy.getPolicy("detectSourcesPolicy")
+    psfPolicy = detectSourcesPolicy.getPolicy("psfPolicy")
     measureSourcesPolicy = makeBlurredCoaddPolicy.getPolicy("measureSourcesPolicy")
     fitPsfPolicy = makeBlurredCoaddPolicy.getPolicy("fitPsfPolicy")
 

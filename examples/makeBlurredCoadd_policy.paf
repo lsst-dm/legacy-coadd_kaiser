@@ -7,10 +7,10 @@ detectSourcesPolicy: {
     thresholdValue: 3
     thresholdType: "stdev"
     thresholdPolarity: "positive"
-    psfPolicyPolicy: {
+    psfPolicy: {
         algorithm: "DoubleGaussian"
-        width = 15
-        height = 15
+        width: 15
+        height: 15
         #5*/(2*sqrt(2*log(2)))
         parameter: 3.22195985
     }
@@ -23,8 +23,8 @@ measureSourcesPolicy: {
     apRadius: 3.0
     psfPolicy: {
         algorithm: "DoubleGaussian"
-        width = 15
-        height = 15
+        width: 15
+        height: 15
         #5*/(2*sqrt(2*log(2)))
         parameter: 3.22195985
     }
