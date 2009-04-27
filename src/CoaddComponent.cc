@@ -158,9 +158,9 @@ void coaddKaiser::CoaddComponent::computeBlurredExposure(
     int edgeBit = ExposureF::MaskedImageT::Mask::getPlaneBitMask("EDGE");
     ExposureCC::MaskedImageT blurredMI = _blurredExposure.getMaskedImage();
     ExposureF::MaskedImageT const scienceMI = scienceExposure.getMaskedImage();
-    scienceExposure.writeFits("scienceExposure");
-    _blurredExposure.writeFits("blurredExposure");
+//     scienceExposure.writeFits("scienceExposure");
     afwMath::convolve(blurredMI, scienceMI, psfKernel, true, edgeBit);
+//     _blurredExposure.writeFits("blurredExposure");
     if (scienceExposure.hasWcs()) {
         afwImage::Wcs::Ptr scienceWcsPtr = scienceExposure.getWcs();
         _blurredExposure.setWcs(*scienceWcsPtr);

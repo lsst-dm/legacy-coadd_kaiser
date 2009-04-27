@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Test lsst.coadd.kaiser.CoaddComponent
 """

@@ -23,6 +23,10 @@ import lsst.afw.display.ds9 as ds9
 import lsst.meas.algorithms as measAlg
 import lsst.meas.algorithms.Psf # should be automatically imported, but oh well
 import lsst.sdqa as sdqa
+import lsst.coadd.kaiser as coaddKaiser
+
+BaseDir = os.path.dirname(__file__)
+DefPolicyPath = os.path.join(BaseDir, "makeBlurredCoadd_policy.paf")
 
 RadPerDeg = math.pi / 180.0
 
@@ -43,7 +47,6 @@ def makeBlankTemplateExposure(fromExposure):
     """
     fromMaskedImage = fromExposure.getMaskedImage()
     fromShape = numpy.array(fromMaskedImage.getDimensions(), dtype=int)
-    fromCtr = (fromShape - 1) / 2
     fromWcs = fromExposure.getWcs()
 
     templateShape = fromShape * 2
@@ -51,12 +54,10 @@ def makeBlankTemplateExposure(fromExposure):
     templateMaskedImage.set((0,0,0))
     
     # make tangent-plane projection WCS for the template
-    raDecCtr = numpy.array(fromWcs.xyToRaDec(fromCtr[0], fromCtr[1]))
-    raDecUp = numpy.array(fromWcs.xyToRaDec(fromCtr[0], fromCtr[1]+1))
-    dRaDec = raDecUp - raDecCtr
-    dRaDec[0] *= math.cos(raDecCtr[0] * RadPerDeg)
-    fromDegPerPix = math.sqrt(dRaDec[0]**2 + dRaDec[1]**2)
-    templateDegPerPix = fromDegPerPix / 2.0
+    fromCtr = (fromShape - 1) / 2
+    fromCtrPt = afwImage.PointD(*fromCtr)
+    raDecCtr = numpy.array(fromWcs.xyToRaDec(fromCtrPt))
+    templateDegPerPix = math.sqrt(fromWcs.pixArea(fromCtrPt))
     
     templateMetadata = PropertySet()
     templateMetadata.add("EPOCH", 2000.0)
@@ -284,7 +285,7 @@ The policy controlling the parameters is makeBlurredCoadd_policy.paf
     else:
         indir = "."
 
-    makeBlurredCoaddPolicyPath = "makeBlurredCoadd_policy.paf"
+    makeBlurredCoaddPolicyPath = DefPolicyPath
     makeBlurredCoaddPolicy = pexPolicy.Policy.createPolicy(makeBlurredCoaddPolicyPath)
     detectSourcesPolicy = makeBlurredCoaddPolicy.getPolicy("detectSourcesPolicy")
     psfPolicy = detectSourcesPolicy.getPolicy("psfPolicy")
@@ -295,6 +296,8 @@ The policy controlling the parameters is makeBlurredCoadd_policy.paf
     ImageSuffix = "_img.fits"
     imageDataList = []
     templateExposure = None
+    templateMaskedImage = None
+    templateWcs = None
     with file(indata, "rU") as infile:
         for lineNum, line in enumerate(infile):
             line = line.strip()
@@ -312,15 +315,28 @@ The policy controlling the parameters is makeBlurredCoadd_policy.paf
             
             if not templateExposure:
                 templateExposure = makeBlankTemplateExposure(exposure)
+                templateMaskedImage = templateExposure.getMaskedImage()
+                templateWcs = templateExposure.getWcs()
             
+            print "Fit and subtract background"
             subtractBackground(exposure)
             
             # fit a spatially varying PSF
+            print "Fit spatially varying PSF"
             detectionSet = detectSources(maskedImage, detectSourcesPolicy, doDisplay = False)
             sourceList = measureSources(exposure, detectionSet, measureSourcesPolicy, doDisplay=False)
             psf, psfCellSet = fitPsf(exposure, sourceList, fitPsfPolicy)
 
-            # compute coadd component
+            print "Compute coadd component"
+            coaddComponent = coaddKaiser.CoaddComponent(exposure, psf.getKernel())
             
-            # add coadd component to template
-            
+            print "Remap blurred exposure to match template WCS"
+            blurredExposure = coaddComponent.getBlurredExposure()
+            remappedBlurredMaskedImage = afwImage.MaskedImageD(
+                templateExposure.getWidth(), templateExposure.getHeight())
+            remappedBlurredExposure = afwImage.ExposureD(remappedBlurredMaskedImage, templateWcs)
+            afwMath.warpExposure(remappedBlurredExposure, blurredExposure, afwMath.LanczosWarpingKernel(3))
+
+            print "Add coadd component to template and save updated template exposure"
+            templateMaskedImage += remappedBlurredExposure.getMaskedImage()
+            templateMaskedImage.writeFits(outname)
