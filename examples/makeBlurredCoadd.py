@@ -1,19 +1,25 @@
 #!/usr/bin/env python
 from __future__ import with_statement
 """
+This example requires:
+- A set of science exposures
+- A set PSF models for those exposures, persisted as XML files
+- A file containing the paths to each, as:
+  image1 psf1
+  image2 psf2
+  ...
+  
 Test:
-on my Unix box:
-python examples/makeBlurredCoadd.py testTeamplate examples/small.txt /net/scratch1/rowen/cfhtdata/
-
 On my Mac
-python examples/makeBlurredCoadd.py testTemplate examples/small.txt /Users/rowen/CFHTData/
+python examples/makeBlurredCoadd.py testTemplate examples/imagesToCoadd.txt
 """
 import os
 import sys
 import math
 import numpy
 
-from lsst.daf.base import PropertySet
+import lsst.daf.base as dafBase
+import lsst.daf.persistence as dafPersist
 import lsst.pex.logging as pexLog
 import lsst.pex.policy as pexPolicy
 import lsst.afw.image as afwImage
@@ -29,6 +35,8 @@ BaseDir = os.path.dirname(__file__)
 DefPolicyPath = os.path.join(BaseDir, "makeBlurredCoadd_policy.paf")
 
 RadPerDeg = math.pi / 180.0
+
+DefSaveImages = True
 
 def makeBlankTemplateExposure(fromExposure):
     """Generate a blank template from a maskedImage
@@ -59,7 +67,7 @@ def makeBlankTemplateExposure(fromExposure):
     raDecCtr = numpy.array(fromWcs.xyToRaDec(fromCtrPt))
     templateDegPerPix = math.sqrt(fromWcs.pixArea(fromCtrPt))
     
-    templateMetadata = PropertySet()
+    templateMetadata = dafBase.PropertySet()
     templateMetadata.add("EPOCH", 2000.0)
     templateMetadata.add("EQUINOX", 2000.0)
     templateMetadata.add("RADECSYS", "FK5")
@@ -99,177 +107,43 @@ def subtractBackground(exposure, doDisplay = False):
         ds9.mtv(maskedImage)
     return bkgObj
 
-
-def detectSources(maskedImage, detectSourcesPolicy, doDisplay = False):
-    """Measure sources on an Exposure.
+def unpersistPsf(xmlPath):
+    """Read a PSF from an XML file"""
+    # Set up persistence object
+    pol = pexPolicy.Policy()
+    persistence = dafPersist.Persistence.getPersistence(pol)
     
-    This really should be a subroutine in meas_algorithms and I submitted PR #743 requesting that.
-    Meanwhile this code is taken from meas_pipelines SourceDetectionStage.
+    # Where is the file on disk? Make a storage object
+    loc = dafPersist.LogicalLocation(xmlPath)
+    storageList = dafPersist.StorageList()
+    storage= persistence.getRetrieveStorage('XmlStorage', loc)
+    storageList.append(storage)
     
-    Inputs:
-    - maskedImage: masked image on which to measure sources
-    - detectSourcesPolicy: a Policy containing elements (with suggested values):
-        minPixels:1 
-        thresholdValue: 3
-        thresholdType: "stdev"
-        psfPolicy: {
-            algorithm: "DoubleGaussian"
-            width = 15
-            height = 15
-            #5*/(2*sqrt(2*log(2)))
-            parameter: 3.22195985
-        }
-    - doDisplay: True to display diagnostic information on ds9
+    # Capture any associated metadata
+    metadata = dafBase.PropertySet()
     
-    psfPolicy is used to smooth the image before detecting sources.
-    """
-    # parse policy
-    psfPolicy = detectSourcesPolicy.getPolicy("psfPolicy")
-    psf = makePsf(psfPolicy)
-
-    minPixels = detectSourcesPolicy.get("minPixels")
-    thresholdValue = detectSourcesPolicy.get("thresholdValue")
-    thresholdType = detectSourcesPolicy.get("thresholdType")
-    thresholdObj = afwDetect.createThreshold(thresholdValue, thresholdType, True)    
+    # Unpersist the object; you need to say which object in storage to grab
+    persistable = persistence.retrieve('pcaPsf', storageList, metadata)
     
-    smoothedMaskedImage = maskedImage.Factory(maskedImage.getDimensions())
-    smoothedMaskedImage.setXY0(maskedImage.getXY0())
-
-    if doDisplay:
-        ds9.mtv(smoothedMaskedImage)
-        
-    # Smooth the Image
-    psf.convolve(smoothedMaskedImage, maskedImage, True, smoothedMaskedImage.getMask().getMaskPlane("EDGE"))
-
-    # Only search psf-smooth part of frame
-    llc = afwImage.PointI(psf.getKernel().getWidth()/2,  psf.getKernel().getHeight()/2)
-    urc = afwImage.PointI(smoothedMaskedImage.getWidth() - 1, smoothedMaskedImage.getHeight() - 1)
-    urc -= llc
-    bbox = afwImage.BBox(llc, urc)
-    middle = smoothedMaskedImage.Factory(smoothedMaskedImage, bbox)
-   
-    detectionSet = afwDetect.makeDetectionSet(middle, thresholdObj, "DETECTED", minPixels)
-    # detectionSet only searched the middle but it belongs to the entire MaskedImage
-    detectionSet.setRegion(afwImage.BBox(afwImage.PointI(maskedImage.getX0(), maskedImage.getY0()),
-                                       maskedImage.getWidth(), maskedImage.getHeight()));
-
-    # Grow the detections into the edge by at least one pixel so that it sees the EDGE bit
-    grow, isotropic = 1, False
-    detectionSet = afwDetect.DetectionSetF(detectionSet, grow, isotropic)
-    detectionSet.setMask(maskedImage.getMask(), "DETECTED")
-
-    return detectionSet
-
-def makePsf(psfPolicy):
-    params = []        
-    params.append(psfPolicy.getString("algorithm"))
-    params.append(psfPolicy.getInt("width"))
-    params.append(psfPolicy.getInt("height"))
-    if psfPolicy.exists("parameter"):
-        params += psfPolicy.getDoubleArray("parameter")
+    # Cast to a PSF model
+    psf = measAlg.PSF_swigConvert(persistable)
+    return psf
     
-    return measAlg.createPSF(*params)
-
-
-def measureSources(exposure, detectionSet, measureSourcesPolicy, doDisplay=False):
-    """Measure the characteristics of sources.
-
-    This really should be a subroutine in meas_algorithms and I submitted PR #743 requesting that.
-    Meanwhile this code is taken from meas_pipelines SourceMeasurementStage.
-    
-    measureSourcesPolicy: { 
-        centroidAlgorithm: "SDSS"
-        shapeAlgorithm: "SDSS"
-        photometryAlgorithm: "NAIVE"
-        apRadius: 3.0
-        psfPolicy: {
-            algorithm: "DoubleGaussian"
-            width = 15
-            height = 15
-            #5*/(2*sqrt(2*log(2)))
-            parameter: 3.22195985
-        }
-    }
-    """
-    psfPolicy = measureSourcesPolicy.getPolicy("psfPolicy")
-    psf = makePsf(psfPolicy)
-    measureSources = measAlg.makeMeasureSources(exposure, measureSourcesPolicy, psf)
-    
-    footprints = detectionSet.getFootprints()
-    sourceList = afwDetect.SourceSet()
-    for i in range(len(footprints)):
-        source = afwDetect.Source()
-        sourceList.append(source)
-    
-        source.setId(i)
-        source.setFlagForDetection(source.getFlagForDetection() | measAlg.Flags.BINNED1);
-    
-        try:
-            measureSources.apply(source, footprints[i])
-        except Exception, e:
-            try:
-                print e
-            except Exception, ee:
-                print ee
-        
-        if source.getFlagForDetection() & measAlg.Flags.EDGE:
-            continue
-    
-        if doDisplay:
-            xc, yc = source.getXAstrom() - mi.getX0(), source.getYAstrom() - mi.getY0()
-            if False:
-                ds9.dot("%.1f %d" % (source.getPsfFlux(), source.getId()), xc, yc+1)
-    
-            ds9.dot("+", xc, yc, size=1)
-            
-            if source.getFlagForDetection() & (measAlg.Flags.INTERP_CENTER | measAlg.Flags.SATUR_CENTER):
-                continue
-            if False:               # XPA causes trouble
-                Ixx, Ixy, Iyy = source.getIxx(), source.getIxy(), source.getIyy()
-                ds9.dot("@:%g,%g,%g" % (Ixx, Ixy, Iyy), xc, yc)
-    return sourceList
-
-
-def fitPsf(exposure, sourceList, fitPsfPolicy):
-    """Fit PSF based on a set of measured sources.
-    
-    fitPsfPolicy must contain:
-    - fluxLim
-    - sizeCellX
-    - sizeCellY
-    - nEigenComponents
-    - spatialOrder
-    - nStarPerCell
-    - kernelSize
-    - nStarPerCellSpatialFit
-    - tolerance
-    - reducedChi2ForPsfCandidates
-    - nIterForPsf
-
-    Return a fit PSF and a psfCelLSet (whatever that is)
-    """
-    sdqaRatings = sdqa.SdqaRatingSet()
-
-    psf, psfCellSet = measAlg.Psf.getPsf(
-        exposure = exposure,
-        sourceList = sourceList,
-        moPolicy = fitPsfPolicy,
-        sdqaRatings = sdqaRatings,
-    )
-    return psf, psfCellSet
-
 
 if __name__ == "__main__":
     pexLog.Trace.setVerbosity('lsst.coadd', 5)
-    helpStr = """Usage: makeBlurredCoadd.py coaddfile indata [indir]
+    helpStr = """Usage: makeBlurredCoadd.py coaddfile indata
 
-where indata is a file containing a list of paths to Exposures (without the final _img.fits);
-these paths are relative to indir, if indir is specified.
+where indata is a file containing a list of:
+    pathToExposure pathToPsf
+where:
+    - pathToExposure is the path to an Exposure (without the final _img.fits)
+    - pathToPsf is the path to a Psf model persisted as an XML file
 Empty lines and lines that start with # are ignored.
 
 The policy controlling the parameters is makeBlurredCoadd_policy.paf
 """
-    if len(sys.argv) not in (3, 4):
+    if len(sys.argv) != 3:
         print helpStr
         sys.exit(0)
     
@@ -280,10 +154,8 @@ The policy controlling the parameters is makeBlurredCoadd_policy.paf
         sys.exit(1)
     
     indata = sys.argv[2]
-    if len(sys.argv) > 3:
-        indir = sys.argv[3]
-    else:
-        indir = "."
+
+    saveImages = DefSaveImages # could make this a command-line option
 
     makeBlurredCoaddPolicyPath = DefPolicyPath
     makeBlurredCoaddPolicy = pexPolicy.Policy.createPolicy(makeBlurredCoaddPolicyPath)
@@ -303,40 +175,54 @@ The policy controlling the parameters is makeBlurredCoadd_policy.paf
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
-            filename = line
-            filepath = os.path.join(indir, filename)
-            if not os.path.isfile(filepath + ImageSuffix):
-                print "Skipping exposure %s; file %s not found" % (filepath, filepath + ImageSuffix)
+            filePath, psfPath = line.split()[0:2]
+            fileName = os.path.basename(filePath)
+            if not os.path.isfile(filePath + ImageSuffix):
+                print "Skipping exposure %s; image file %s not found" % (fileName, filePath + ImageSuffix,)
+                continue
+            if not os.path.isfile(psfPath):
+                print "Skipping exposure %s; psf file %s not found" % (fileName, psfPath)
                 continue
             
-            print "Processing exposure %s" % (filepath,)
-            exposure = afwImage.ExposureF(filepath)
+            print "Processing exposure %s" % (filePath,)
+            exposure = afwImage.ExposureF(filePath)
             maskedImage = exposure.getMaskedImage()
+            psfModel = unpersistPsf(psfPath)
             
             if not templateExposure:
                 templateExposure = makeBlankTemplateExposure(exposure)
                 templateMaskedImage = templateExposure.getMaskedImage()
                 templateWcs = templateExposure.getWcs()
             
-            print "Fit and subtract background"
+            print "  Fit and subtract background"
             subtractBackground(exposure)
+            if saveImages:
+                exposure.writeFits("bgSubtracted%s" % (fileName,))
             
-            # fit a spatially varying PSF
-            print "Fit spatially varying PSF"
-            detectionSet = detectSources(maskedImage, detectSourcesPolicy, doDisplay = False)
-            sourceList = measureSources(exposure, detectionSet, measureSourcesPolicy, doDisplay=False)
-            psf, psfCellSet = fitPsf(exposure, sourceList, fitPsfPolicy)
+            print "  Compute coadd component"
+            coaddComponent = coaddKaiser.CoaddComponent(exposure, psfModel.getKernel())
 
-            print "Compute coadd component"
-            coaddComponent = coaddKaiser.CoaddComponent(exposure, psf.getKernel())
-            
-            print "Remap blurred exposure to match template WCS"
+            print "  Divide exposure by sigma squared = %s" % (coaddComponent.getSigmaSq(),)
             blurredExposure = coaddComponent.getBlurredExposure()
+            blurredMaskedImage = blurredExposure.getMaskedImage()
+            sigmaSq = coaddComponent.getSigmaSq()
+            if saveImages:
+                blurredExposure.writeFits("blurred%s" % (fileName,))
+            blurredMaskedImage /= sigmaSq
+            if saveImages:
+                blurredExposure.writeFits("scaledBlurred%s" % (fileName,))
+            
+            print "  Remap blurred exposure to match template WCS"
             remappedBlurredMaskedImage = afwImage.MaskedImageD(
                 templateExposure.getWidth(), templateExposure.getHeight())
             remappedBlurredExposure = afwImage.ExposureD(remappedBlurredMaskedImage, templateWcs)
-            afwMath.warpExposure(remappedBlurredExposure, blurredExposure, afwMath.LanczosWarpingKernel(3))
+            if saveImages:
+                remappedBlurredExposure.writeFits("remappedBlurred%s" % (fileName,))
+            nGoodPix = afwMath.warpExposure(remappedBlurredExposure, blurredExposure,
+                afwMath.LanczosWarpingKernel(3))
+            nPix = templateExposure.getWidth() * templateExposure.getHeight()
+            print "  Remapped image has %d good pixels (%0.0f %%)" % (nGoodPix, 100 * nGoodPix / float(nPix))
 
-            print "Add coadd component to template and save updated template exposure"
+            print "  Add remapped blurred exposure to template and save updated template exposure"
             templateMaskedImage += remappedBlurredExposure.getMaskedImage()
             templateMaskedImage.writeFits(outname)
