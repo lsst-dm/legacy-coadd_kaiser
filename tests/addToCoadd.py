@@ -26,12 +26,11 @@ dataDir = eups.productDir("afwdata")
 if not dataDir:
     raise RuntimeError("Must set up afwdata to run these tests") 
 
-InputMaskedImageName = "871034p_1_MI"
-InputMaskedImageNameSmall = "small_MI"
+InputMaskedImageNameMed = "med"
 
 currDir = os.path.abspath(os.path.dirname(__file__))
 inFilePath = os.path.join(dataDir, InputMaskedImageName)
-inFilePathSmall = os.path.join(dataDir, InputMaskedImageNameSmall)
+medMIPath = os.path.join(dataDir, InputMaskedImageNameMed)
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 
@@ -64,7 +63,7 @@ def referenceAddToCoadd(coadd, depthMap, image, badPixelMask):
     return coaddArrayList, depthMapArray
 
 
-class addToCoaddTestCase(unittest.TestCase):
+class AddToCoaddTestCase(unittest.TestCase):
     """
     A test case for addToCoadd
     """
@@ -95,15 +94,44 @@ class addToCoaddTestCase(unittest.TestCase):
             errMsg = "\n".join(errMsgList)
             self.fail(errMsg)
         
-    def testSmall(self):
-        """Test addToCoadd on afwdata small image
+    def testMed(self):
+        """Test addToCoadd by adding an image with known bad pixels using varying masks
         """
-        image = afwImage.MaskedImageF(inFilePathSmall)
+        image = afwImage.MaskedImageF(medMIPath)
         coadd = afwImage.MaskedImageF(image.getDimensions())
         coadd *= 0.0
         depthMap = afwImage.ImageU(image.getDimensions(), 0)
-        for badPixelMask in (0, 0xF, 0xFF, 0xFFF, 0xFFFF):
+        for badPixelMask in (0x01, 0x02, 0x03):
             self.referenceTest(coadd, depthMap, image, badPixelMask)
+
+class SetCoaddEdgeBitsTestCase(unittest.TestCase):
+    """
+    A test case for setCoaddEdgeBits
+    """
+    def testMed(self):
+        """Test setCoaddEdgeBits on the usual medium-sized image
+        """
+        image = afwImage.MaskedImageF(medMIPath)
+        coadd = afwImage.MaskedImageF(image.getDimensions())
+        coadd *= 0.0
+        depthMap = afwImage.ImageU(image.getDimensions(), 0)
+        coaddKaiser.addToCoadd(coadd, depthMap, image, 0xFFFF)
+        depthMapArray = imTestUtils.arrayFromImage(depthMap)
+        refCoaddMaskArray = imTestUtils.arrayFromMask(coadd.getMask())
+        edgeMask = afwImage.MaskU.getPlaneBitMask("EDGE")
+        refCoaddMaskArray |= numpy.where(depthMapArray > 0, 0, edgeMask)
+        
+        coaddMask = coadd.getMask()
+        coaddKaiser.setCoaddEdgeBits(coaddMask, depthMap)
+        coaddMaskArray = imTestUtils.arrayFromMask(coaddMask)
+        if numpy.any(refCoaddMaskArray != coaddMaskArray):
+            errMsgList = (
+                "Coadd mask does not match reference=%s:" % (badPixelMask,),
+                "computed=  %s" % (coaddMaskArray,),
+                "reference= %s" % (refCoaddMaskArray,),
+            )
+            errMsg = "\n".join(errMsgList)
+            self.fail(errMsg)
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -114,7 +142,8 @@ def suite():
     utilsTests.init()
 
     suites = []
-    suites += unittest.makeSuite(addToCoaddTestCase)
+    suites += unittest.makeSuite(AddToCoaddTestCase)
+    suites += unittest.makeSuite(SetCoaddEdgeBitsTestCase)
     suites += unittest.makeSuite(utilsTests.MemoryTestCase)
 
     return unittest.TestSuite(suites)
