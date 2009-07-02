@@ -1,6 +1,7 @@
 #<? cfg paf policy ?>
 #
 # default policy for makeBlurredCoadd.py example
+normalizePsf: True
 
 detectSourcesPolicy: {
     minPixels:1 

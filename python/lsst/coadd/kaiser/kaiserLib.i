@@ -25,9 +25,9 @@ Python interface to lsst::coadd::kaiser functions and classes
 %include "lsst/coadd/kaiser/medianBinapprox.h"
 %template(medianBinapproxImage)  lsst::coadd::kaiser::medianBinapproxImage<float>;
 
-%include "lsst/coadd/kaiser/addToMaskedImage.h"
+%include "lsst/coadd/kaiser/addToCoadd.h"
 %define %ADDTOMASKEDIMAGE(TYPE)
-    %template(addToMaskedImage) lsst::coadd::kaiser::addToMaskedImage<TYPE,
+    %template(addToCoadd) lsst::coadd::kaiser::addToCoadd<TYPE,
         lsst::afw::image::MaskPixel, lsst::afw::image::VariancePixel>;
 %enddef
 %ADDTOMASKEDIMAGE(double);

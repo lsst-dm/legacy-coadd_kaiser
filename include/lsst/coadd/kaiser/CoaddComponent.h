@@ -34,7 +34,8 @@ namespace kaiser {
 
         explicit CoaddComponent(
             ExposureF const &scienceExposure,
-            lsst::afw::math::Kernel const &psfKernel
+            lsst::afw::math::Kernel const &psfKernel,
+            bool normalizePsf = true
         );
         virtual ~CoaddComponent() {};
 
@@ -48,6 +49,7 @@ namespace kaiser {
         double _sigmaSq;
         ExposureCC _blurredExposure;
         ImageCC _blurredPsfImage;
+        bool _normalizePsf;
         
         void computeSigmaSq(
             ExposureF const &scienceExposure

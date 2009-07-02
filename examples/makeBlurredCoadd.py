@@ -39,15 +39,15 @@ RadPerDeg = math.pi / 180.0
 DefSaveImages = True
 
 def makeBlankTemplateExposure(fromExposure):
-    """Generate a blank template from a maskedImage
+    """Generate a blank coadd from a maskedImage
     
-    The template will have:
+    The coadd will have:
     - Four times as many pixels (twice the resolution in x and y)
     - The same center RA/Dec
     - 2x the on-sky resolution in RA and Dec
     - North up, east to the right
     
-    Note that the amount of overlap between the template and maskedImage will vary significantly
+    Note that the amount of overlap between the coadd and maskedImage will vary significantly
     based on how maskedImage is rotated.
     
     Warning:
@@ -57,41 +57,42 @@ def makeBlankTemplateExposure(fromExposure):
     fromShape = numpy.array(fromMaskedImage.getDimensions(), dtype=int)
     fromWcs = fromExposure.getWcs()
 
-    templateShape = fromShape * 2
-    templateMaskedImage = afwImage.MaskedImageD(templateShape[0], templateShape[1])
-    templateMaskedImage.set((0,0,0))
+    coaddShape = fromShape * 2
+    coaddMaskedImage = afwImage.MaskedImageD(coaddShape[0], coaddShape[1])
+    coaddMaskedImage.set((0,0,0))
     
-    # make tangent-plane projection WCS for the template
+    # make tangent-plane projection WCS for the coadd
     fromCtr = (fromShape - 1) / 2
     fromCtrPt = afwImage.PointD(*fromCtr)
     raDecCtr = numpy.array(fromWcs.xyToRaDec(fromCtrPt))
-    templateDegPerPix = math.sqrt(fromWcs.pixArea(fromCtrPt))
+    coaddDegPerPix = math.sqrt(fromWcs.pixArea(fromCtrPt)) / 2.0
     
-    templateMetadata = dafBase.PropertySet()
-    templateMetadata.add("EPOCH", 2000.0)
-    templateMetadata.add("EQUINOX", 2000.0)
-    templateMetadata.add("RADECSYS", "FK5")
-    templateMetadata.add("CTYPE1", "RA---TAN")
-    templateMetadata.add("CTYPE2", "DEC--TAN")
-    templateMetadata.add("CRPIX1", templateShape[0]/2)
-    templateMetadata.add("CRPIX2", templateShape[1]/2)
-    templateMetadata.add("CRVAL1", raDecCtr[0])
-    templateMetadata.add("CRVAL2", raDecCtr[1])
-    templateMetadata.add("CD1_1", templateDegPerPix)
-    templateMetadata.add("CD1_2", 0.0)
-    templateMetadata.add("CD2_1", 0.0)
-    templateMetadata.add("CD2_2", templateDegPerPix)
-    templateWcs = afwImage.Wcs(templateMetadata)
-    templateExposure = afwImage.ExposureD(templateMaskedImage, templateWcs)
-    return templateExposure
+    coaddMetadata = dafBase.PropertySet()
+    coaddMetadata.add("EPOCH", 2000.0)
+    coaddMetadata.add("EQUINOX", 2000.0)
+    coaddMetadata.add("RADECSYS", "FK5")
+    coaddMetadata.add("CTYPE1", "RA---TAN")
+    coaddMetadata.add("CTYPE2", "DEC--TAN")
+    coaddMetadata.add("CRPIX1", coaddShape[0]/2)
+    coaddMetadata.add("CRPIX2", coaddShape[1]/2)
+    coaddMetadata.add("CRVAL1", raDecCtr[0])
+    coaddMetadata.add("CRVAL2", raDecCtr[1])
+    coaddMetadata.add("CD1_1", coaddDegPerPix)
+    coaddMetadata.add("CD1_2", 0.0)
+    coaddMetadata.add("CD2_1", 0.0)
+    coaddMetadata.add("CD2_2", coaddDegPerPix)
+    coaddWcs = afwImage.Wcs(coaddMetadata)
+    coaddExposure = afwImage.ExposureD(coaddMaskedImage, coaddWcs)
+    return coaddExposure
 
 
-def subtractBackground(exposure, doDisplay = False):
-    """Subtract the background from an Exposure
+def subtractBackground(maskedImage, doDisplay = False):
+    """Subtract the background from a MaskedImage
+    
+    Note: at present the mask and variance are ignored, but they might used be someday.
     
     Returns the background object returned by afwMath.makeBackground.
     """
-    maskedImage = exposure.getMaskedImage()
     if doDisplay:
         ds9.mtv(maskedImage)
     bkgControl = afwMath.BackgroundControl(afwMath.NATURAL_SPLINE)
@@ -99,12 +100,12 @@ def subtractBackground(exposure, doDisplay = False):
     bkgControl.setNySample(max(2, int(maskedImage.getHeight()/256) + 1))
     bkgControl.sctrl.setNumSigmaClip(3)
     bkgControl.sctrl.setNumIter(3)
-    
-    im = maskedImage.getImage()
-    bkgObj = afwMath.makeBackground(im, bkgControl)
-    im -= bkgObj.getImageF()
+
+    image = maskedImage.getImage()
+    bkgObj = afwMath.makeBackground(image, bkgControl)
+    image -= bkgObj.getImageF()
     if doDisplay:
-        ds9.mtv(maskedImage)
+        ds9.mtv(image)
     return bkgObj
 
 def unpersistPsf(xmlPath):
@@ -134,12 +135,14 @@ if __name__ == "__main__":
     pexLog.Trace.setVerbosity('lsst.coadd', 5)
     helpStr = """Usage: makeBlurredCoadd.py coaddfile indata
 
-where indata is a file containing a list of:
-    pathToExposure pathToPsf
 where:
-    - pathToExposure is the path to an Exposure (without the final _img.fits)
-    - pathToPsf is the path to a Psf model persisted as an XML file
-Empty lines and lines that start with # are ignored.
+- coaddfile is the desired name or path of the output coadd
+- indata is a file containing a list of:
+  pathToExposure pathToPsf
+  where:
+  - pathToExposure is the path to an Exposure (without the final _img.fits)
+  - pathToPsf is the path to a Psf model persisted as an XML file
+  - empty lines and lines that start with # are ignored.
 
 The policy controlling the parameters is makeBlurredCoadd_policy.paf
 """
@@ -148,10 +151,11 @@ The policy controlling the parameters is makeBlurredCoadd_policy.paf
         sys.exit(0)
     
     outname = sys.argv[1]
-    if os.path.exists(outname):
+    if os.path.exists(outname + "_img.fits"):
         print "Coadd file %s already exists" % (outname,)
         print helpStr
         sys.exit(1)
+    depthOutName = outname + "_depth.fits"
     
     indata = sys.argv[2]
 
@@ -159,6 +163,7 @@ The policy controlling the parameters is makeBlurredCoadd_policy.paf
 
     makeBlurredCoaddPolicyPath = DefPolicyPath
     makeBlurredCoaddPolicy = pexPolicy.Policy.createPolicy(makeBlurredCoaddPolicyPath)
+    normalizePsf = makeBlurredCoaddPolicy.get("normalizePsf")
     detectSourcesPolicy = makeBlurredCoaddPolicy.getPolicy("detectSourcesPolicy")
     psfPolicy = detectSourcesPolicy.getPolicy("psfPolicy")
     measureSourcesPolicy = makeBlurredCoaddPolicy.getPolicy("measureSourcesPolicy")
@@ -167,9 +172,10 @@ The policy controlling the parameters is makeBlurredCoadd_policy.paf
     # parse indata
     ImageSuffix = "_img.fits"
     imageDataList = []
-    templateExposure = None
-    templateMaskedImage = None
-    templateWcs = None
+    coaddExposure = None
+    coaddMaskedImage = None
+    coaddWcs = None
+    depthMap = None
     with file(indata, "rU") as infile:
         for lineNum, line in enumerate(infile):
             line = line.strip()
@@ -186,21 +192,42 @@ The policy controlling the parameters is makeBlurredCoadd_policy.paf
             
             print "Processing exposure %s" % (filePath,)
             exposure = afwImage.ExposureF(filePath)
+            subStart = afwImage.PointI(0, 0)
+            subExposureBBox = afwImage.BBox(subStart, 300, 300)
+            exposure = afwImage.ExposureF(exposure, subExposureBBox, True)
             maskedImage = exposure.getMaskedImage()
             psfModel = unpersistPsf(psfPath)
+            psfKernel = psfModel.getKernel()
+            if normalizePsf and afwMath.LinearCombinationKernel.swigConvert(psfKernel) != None:
+                # psf kernel is a LinearCombinationKernel; convert to a FixedKernel
+                if psfKernel.isSpatiallyVarying():
+                    print """Warning: ignoring spatial variation of psf: normalizePsf is True,
+but psf kernel is a spatially varying LinearCombinationKernel,
+which cannot be normalized until ticket 833 is implemented."""
+                psfImage = afwImage.ImageD(psfKernel.getWidth(), psfKernel.getHeight())
+                xCtrInd = (psfKernel.getWidth() - 1) / 2.0
+                yCtrInd = (psfKernel.getHeight() - 1) / 2.0
+#               note: use indexToPosition once a floating point version is available -- ticket #845
+#                 xCtrPos = afwImage.indexToPosition(xCtrInd)
+#                 yCtrPos = afwImage.indexToPosition(yCtrInd)
+                xCtrPos = afwImage.PixelZeroPos + xCtrInd
+                yCtrPos = afwImage.PixelZeroPos + yCtrInd
+                psfKernel.computeImage(psfImage, True, xCtrPos, yCtrPos)
+                psfKernel = afwMath.FixedKernel(psfImage)
             
-            if not templateExposure:
-                templateExposure = makeBlankTemplateExposure(exposure)
-                templateMaskedImage = templateExposure.getMaskedImage()
-                templateWcs = templateExposure.getWcs()
+            if not coaddExposure:
+                coaddExposure = makeBlankTemplateExposure(exposure)
+                coaddMaskedImage = coaddExposure.getMaskedImage()
+                coaddWcs = coaddExposure.getWcs()
+                depthMap = afwImage.ImageU(coaddMaskedImage.getDimensions(), 0)
             
             print "  Fit and subtract background"
-            subtractBackground(exposure)
+            subtractBackground(maskedImage)
             if saveImages:
                 exposure.writeFits("bgSubtracted%s" % (fileName,))
             
             print "  Compute coadd component"
-            coaddComponent = coaddKaiser.CoaddComponent(exposure, psfModel.getKernel())
+            coaddComponent = coaddKaiser.CoaddComponent(exposure, psfKernel, normalizePsf)
 
             print "  Divide exposure by sigma squared = %s" % (coaddComponent.getSigmaSq(),)
             blurredExposure = coaddComponent.getBlurredExposure()
@@ -212,17 +239,18 @@ The policy controlling the parameters is makeBlurredCoadd_policy.paf
             if saveImages:
                 blurredExposure.writeFits("scaledBlurred%s" % (fileName,))
             
-            print "  Remap blurred exposure to match template WCS"
+            print "  Remap blurred exposure to match coadd WCS"
             remappedBlurredMaskedImage = afwImage.MaskedImageD(
-                templateExposure.getWidth(), templateExposure.getHeight())
-            remappedBlurredExposure = afwImage.ExposureD(remappedBlurredMaskedImage, templateWcs)
+                coaddExposure.getWidth(), coaddExposure.getHeight())
+            remappedBlurredExposure = afwImage.ExposureD(remappedBlurredMaskedImage, coaddWcs)
             if saveImages:
                 remappedBlurredExposure.writeFits("remappedBlurred%s" % (fileName,))
             nGoodPix = afwMath.warpExposure(remappedBlurredExposure, blurredExposure,
                 afwMath.LanczosWarpingKernel(3))
-            nPix = templateExposure.getWidth() * templateExposure.getHeight()
+            nPix = coaddExposure.getWidth() * coaddExposure.getHeight()
             print "  Remapped image has %d good pixels (%0.0f %%)" % (nGoodPix, 100 * nGoodPix / float(nPix))
 
-            print "  Add remapped blurred exposure to template and save updated template exposure"
-            templateMaskedImage += remappedBlurredExposure.getMaskedImage()
-            templateMaskedImage.writeFits(outname)
+            print "  Add remapped blurred exposure to coadd and save updated coadd exposure"
+            coaddKaiser.addToCoadd(coaddMaskedImage, depthMap, remappedBlurredExposure.getMaskedImage(), 0xFFFF)
+            coaddMaskedImage.writeFits(outname)
+            depthMap.writeFits(depthOutName)

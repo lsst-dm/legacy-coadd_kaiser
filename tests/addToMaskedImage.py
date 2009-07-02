@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Test lsst.coadd.kaiser.addToMaskedImage
+Test lsst.coadd.kaiser.addToCoadd
 """
 
 import os
@@ -36,14 +36,14 @@ inFilePathSmall = os.path.join(dataDir, InputMaskedImageNameSmall)
 
 class addToMaskedImageTestCase(unittest.TestCase):
     """
-    A test case for addToMaskedImage
+    A test case for addToCoadd
     """
     def referenceTest(self, outMaskedImage, inMaskedImage, badPixelMask):
-        """Compare lsst implemenation of addToMaskedImage to a reference implementation.
+        """Compare lsst implemenation of addToCoadd to a reference implementation.
         """
         origOutArrays = imTestUtils.arraysFromMaskedImage(outMaskedImage)
         inArrays = imTestUtils.arraysFromMaskedImage(inMaskedImage)
-        coaddKaiser.addToMaskedImage(outMaskedImage, inMaskedImage, badPixelMask)
+        coaddKaiser.addToCoadd(outMaskedImage, inMaskedImage, badPixelMask)
         computedOutArrays = imTestUtils.arraysFromMaskedImage(outMaskedImage)
         
         badMaskArr = (inArrays[1] & badPixelMask) != 0
@@ -69,7 +69,7 @@ class addToMaskedImageTestCase(unittest.TestCase):
         
         
     def testSmall(self):
-        """Test addToMaskedImage on afwdata small image
+        """Test addToCoadd on afwdata small image
         """
         inMaskedImage = afwImage.MaskedImageF(inFilePathSmall)
         outMaskedImage = afwImage.MaskedImageF(inMaskedImage.getWidth(), inMaskedImage.getHeight())
