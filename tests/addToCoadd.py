@@ -28,8 +28,6 @@ if not dataDir:
 
 InputMaskedImageNameMed = "med"
 
-currDir = os.path.abspath(os.path.dirname(__file__))
-inFilePath = os.path.join(dataDir, InputMaskedImageName)
 medMIPath = os.path.join(dataDir, InputMaskedImageNameMed)
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -72,6 +70,7 @@ class AddToCoaddTestCase(unittest.TestCase):
         """
         refCoaddArrayList, refDepthMapArray = referenceAddToCoadd(coadd, depthMap, image, badPixelMask)
         coaddKaiser.addToCoadd(coadd, depthMap, image, badPixelMask) # changes the inputs
+        depthMap.writeFits("depthMap.fits")
         coaddArrayList = imTestUtils.arraysFromMaskedImage(coadd)
         maskArr = coaddArrayList[1]
         depthMapArray = imTestUtils.arrayFromImage(depthMap)
@@ -101,7 +100,7 @@ class AddToCoaddTestCase(unittest.TestCase):
         coadd = afwImage.MaskedImageF(image.getDimensions())
         coadd *= 0.0
         depthMap = afwImage.ImageU(image.getDimensions(), 0)
-        for badPixelMask in (0x01, 0x02, 0x03):
+        for badPixelMask in (0x01, 0x03):
             self.referenceTest(coadd, depthMap, image, badPixelMask)
 
 class SetCoaddEdgeBitsTestCase(unittest.TestCase):
