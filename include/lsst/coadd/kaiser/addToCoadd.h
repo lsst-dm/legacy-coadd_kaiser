@@ -25,6 +25,12 @@ namespace kaiser {
         lsst::afw::image::MaskedImage<ImagePixelT, MaskPixelT, VariancePixelT> const &image,
         MaskPixelT const badPixelMask
     );
+    
+    template<typename MaskPixelT>
+    void setCoaddEdgeBits(
+        lsst::afw::image::Mask<MaskPixelT> &coaddMask,
+        lsst::afw::image::Image<boost::uint16_t> const &depthMap
+    );
 
 }}} // lsst::coadd::kaiser
 

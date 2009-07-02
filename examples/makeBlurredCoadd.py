@@ -36,7 +36,7 @@ DefPolicyPath = os.path.join(BaseDir, "makeBlurredCoadd_policy.paf")
 
 RadPerDeg = math.pi / 180.0
 
-DefSaveImages = True
+DefSaveImages = False
 
 def makeBlankTemplateExposure(fromExposure):
     """Generate a blank coadd from a maskedImage
@@ -150,12 +150,12 @@ The policy controlling the parameters is makeBlurredCoadd_policy.paf
         print helpStr
         sys.exit(0)
     
-    outname = sys.argv[1]
-    if os.path.exists(outname + "_img.fits"):
-        print "Coadd file %s already exists" % (outname,)
+    outName = sys.argv[1]
+    if os.path.exists(outName + "_img.fits"):
+        print "Coadd file %s already exists" % (outName,)
         print helpStr
         sys.exit(1)
-    depthOutName = outname + "_depth.fits"
+    depthOutName = outName + "_depth.fits"
     
     indata = sys.argv[2]
 
@@ -252,5 +252,7 @@ which cannot be normalized until ticket 833 is implemented."""
 
             print "  Add remapped blurred exposure to coadd and save updated coadd exposure"
             coaddKaiser.addToCoadd(coaddMaskedImage, depthMap, remappedBlurredExposure.getMaskedImage(), 0xFFFF)
-            coaddMaskedImage.writeFits(outname)
+            coaddExposure.writeFits(outName)
             depthMap.writeFits(depthOutName)
+    coaddKaiser.setCoaddEdgeBits(coaddMaskedImage.getMask(), depthMap)
+    coaddExposure.writeFits(outName)    
