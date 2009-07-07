@@ -37,6 +37,8 @@ DefPolicyPath = os.path.join(BaseDir, "makeBlurredCoadd_policy.paf")
 RadPerDeg = math.pi / 180.0
 
 DefSaveImages = False
+# names of mask planes permitted in the coadd
+AcceptableMaskPlaneList = ("SAT",)
 
 def makeBlankTemplateExposure(fromExposure):
     """Generate a blank coadd from a maskedImage
@@ -158,6 +160,12 @@ The policy controlling the parameters is makeBlurredCoadd_policy.paf
     depthOutName = outName + "_depth.fits"
     
     indata = sys.argv[2]
+    
+    acceptableMask = 0
+    for maskPlaneName in AcceptableMaskPlaneList:
+        acceptableMask |= 1 << afwImage.MaskU.getMaskPlane(maskPlaneName)
+    CoaddMask = 0xFFFF - acceptableMask
+    
 
     saveImages = DefSaveImages # could make this a command-line option
 
@@ -192,9 +200,10 @@ The policy controlling the parameters is makeBlurredCoadd_policy.paf
             
             print "Processing exposure %s" % (filePath,)
             exposure = afwImage.ExposureF(filePath)
-            subStart = afwImage.PointI(0, 0)
-            subExposureBBox = afwImage.BBox(subStart, 300, 300)
-            exposure = afwImage.ExposureF(exposure, subExposureBBox, True)
+#           Uncomment to make a quick small template
+#             subStart = afwImage.PointI(0, 0)
+#             subExposureBBox = afwImage.BBox(subStart, 300, 300)
+#             exposure = afwImage.ExposureF(exposure, subExposureBBox, True)
             maskedImage = exposure.getMaskedImage()
             psfModel = unpersistPsf(psfPath)
             psfKernel = psfModel.getKernel()
@@ -251,7 +260,7 @@ which cannot be normalized until ticket 833 is implemented."""
             print "  Remapped image has %d good pixels (%0.0f %%)" % (nGoodPix, 100 * nGoodPix / float(nPix))
 
             print "  Add remapped blurred exposure to coadd and save updated coadd exposure"
-            coaddKaiser.addToCoadd(coaddMaskedImage, depthMap, remappedBlurredExposure.getMaskedImage(), 0xFFFF)
+            coaddKaiser.addToCoadd(coaddMaskedImage, depthMap, remappedBlurredExposure.getMaskedImage(), CoaddMask)
             coaddExposure.writeFits(outName)
             depthMap.writeFits(depthOutName)
     coaddKaiser.setCoaddEdgeBits(coaddMaskedImage.getMask(), depthMap)
