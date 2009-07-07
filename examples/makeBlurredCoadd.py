@@ -38,7 +38,7 @@ RadPerDeg = math.pi / 180.0
 
 DefSaveImages = False
 # names of mask planes permitted in the coadd
-AcceptableMaskPlaneList = ("SAT",)
+AcceptableMaskPlaneList = ("SAT", "INTRP")
 
 def makeBlankTemplateExposure(fromExposure):
     """Generate a blank coadd from a maskedImage
