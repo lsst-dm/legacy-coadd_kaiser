@@ -5,6 +5,7 @@ setupRequired(xpa)
 setupRequired(numpy)
 setupRequired(minuit)
 setupRequired(afw)
+setupRequired(coadd_utils)
 # for examples
 setupOptional(meas_algorithms)
 

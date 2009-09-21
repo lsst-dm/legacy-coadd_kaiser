@@ -29,6 +29,7 @@ import lsst.afw.display.ds9 as ds9
 import lsst.meas.algorithms as measAlg
 import lsst.meas.algorithms.Psf # should be automatically imported, but oh well
 import lsst.sdqa as sdqa
+import lsst.coadd.utils as coaddUtils
 import lsst.coadd.kaiser as coaddKaiser
 
 BaseDir = os.path.dirname(__file__)
@@ -260,8 +261,8 @@ which cannot be normalized until ticket 833 is implemented."""
             print "  Remapped image has %d good pixels (%0.0f %%)" % (nGoodPix, 100 * nGoodPix / float(nPix))
 
             print "  Add remapped blurred exposure to coadd and save updated coadd exposure"
-            coaddKaiser.addToCoadd(coaddMaskedImage, depthMap, remappedBlurredExposure.getMaskedImage(), CoaddMask)
+            coaddUtils.addToCoadd(coaddMaskedImage, depthMap, remappedBlurredExposure.getMaskedImage(), CoaddMask)
             coaddExposure.writeFits(outName)
             depthMap.writeFits(depthOutName)
-    coaddKaiser.setCoaddEdgeBits(coaddMaskedImage.getMask(), depthMap)
+    coaddUtils.setCoaddEdgeBits(coaddMaskedImage.getMask(), depthMap)
     coaddExposure.writeFits(outName)    

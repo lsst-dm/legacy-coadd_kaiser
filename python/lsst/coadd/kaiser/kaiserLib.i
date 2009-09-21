@@ -25,17 +25,5 @@ Python interface to lsst::coadd::kaiser functions and classes
 %include "lsst/coadd/kaiser/medianBinapprox.h"
 %template(medianBinapproxImage)  lsst::coadd::kaiser::medianBinapproxImage<float>;
 
-%include "lsst/coadd/kaiser/addToCoadd.h"
-%define %ADDTOMASKEDIMAGE(TYPE)
-    %template(addToCoadd) lsst::coadd::kaiser::addToCoadd<TYPE,
-        lsst::afw::image::MaskPixel, lsst::afw::image::VariancePixel>;
-%enddef
-%ADDTOMASKEDIMAGE(double);
-%ADDTOMASKEDIMAGE(float);
-%ADDTOMASKEDIMAGE(int);
-%ADDTOMASKEDIMAGE(boost::uint16_t);
-
-%template(setCoaddEdgeBits) lsst::coadd::kaiser::setCoaddEdgeBits<lsst::afw::image::MaskPixel>;
-
 SWIG_SHARED_PTR_DERIVED(CoaddComponent, lsst::daf::base::Citizen, lsst::coadd::kaiser::CoaddComponent)
 %include "lsst/coadd/kaiser/CoaddComponent.h"
