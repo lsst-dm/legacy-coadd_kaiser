@@ -33,7 +33,7 @@ namespace {
         
         const int nRows = static_cast<int>(image.getHeight());
         const int nFullRowsToSwap = nRows / 2;
-        const bool oddNRows = (nRows % 2 != 0);
+        const bool isOddNRows = (nRows % 2 != 0);
          // use x_at(xLast, y) instead of row_end(y) to get the reverse row iterator
          // because row_end(y) starts one beyond the last pixel
         const int xLast = static_cast<int>(image.getWidth()) - 1;
@@ -43,10 +43,10 @@ namespace {
                 std::swap(*fwdPtr, *revPtr);
             }
         }
-        if (oddNRows) {
+        if (isOddNRows) {
             const unsigned int yCtr = nFullRowsToSwap;
             const unsigned int halfCols = image.getWidth() / 2;
-            XIteratorCC const fwdEndCtr = image.x_at(halfCols + 1, yCtr); // +1 is for 1 beyond last pixel to swap
+            XIteratorCC const fwdEndCtr = image.x_at(halfCols + 1, yCtr); // +1 for 1 after last pixel to swap
             XIteratorCC fwdPtr = image.row_begin(yCtr);
             XIteratorCC revPtr = image.x_at(xLast, yCtr);
             for ( ; fwdPtr != fwdEndCtr; ++fwdPtr, --revPtr) {
@@ -69,7 +69,7 @@ namespace {
  */ 
 coaddKaiser::CoaddComponent::CoaddComponent(
     ExposureF const &scienceExposure,   ///< science Exposure with the background subtracted
-    afwMath::Kernel const &psfKernel,   ///< PSF of science Exposure
+    lsst::afw::math::Kernel const &psfKernel,   ///< PSF of science Exposure
     bool normalizePsf                   ///< normalize psf
 ) :
     lsst::daf::base::Citizen(typeid(this)),
@@ -120,7 +120,7 @@ void coaddKaiser::CoaddComponent::computeSigmaSq(
  * \ingroup coadd::kaiser
  */
 void coaddKaiser::CoaddComponent::computeBlurredPsf(
-    afwMath::Kernel const &psfKernel    ///< PSF kernel
+    lsst::afw::math::Kernel const &psfKernel    ///< PSF kernel
 ) {
     int const psfWidth = psfKernel.getWidth();
     int const psfHeight = psfKernel.getHeight();
@@ -150,7 +150,7 @@ void coaddKaiser::CoaddComponent::computeBlurredPsf(
  */
 void coaddKaiser::CoaddComponent::computeBlurredExposure(
     ExposureF const &scienceExposure,   ///< science exposure
-    afwMath::Kernel const &psfKernel    ///< PSF kernel
+    lsst::afw::math::Kernel const &psfKernel    ///< PSF kernel
 ) {
     ExposureCC::MaskedImageT blurredMI = _blurredExposure.getMaskedImage();
     ExposureF::MaskedImageT const scienceMI = scienceExposure.getMaskedImage();

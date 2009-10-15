@@ -41,53 +41,7 @@ DefSaveImages = False
 # names of mask planes permitted in the coadd
 AcceptableMaskPlaneList = ("SAT", "INTRP")
 
-def makeBlankTemplateExposure(fromExposure):
-    """Generate a blank coadd from a maskedImage
-    
-    The coadd will have:
-    - Four times as many pixels (twice the resolution in x and y)
-    - The same center RA/Dec
-    - 2x the on-sky resolution in RA and Dec
-    - North up, east to the right
-    
-    Note that the amount of overlap between the coadd and maskedImage will vary significantly
-    based on how maskedImage is rotated.
-    
-    Warning:
-    - The maskedImage must use FK5 J2000 coordinates for its WCS. This is NOT checked.
-    """
-    fromMaskedImage = fromExposure.getMaskedImage()
-    fromShape = numpy.array(fromMaskedImage.getDimensions(), dtype=int)
-    fromWcs = fromExposure.getWcs()
-
-    coaddShape = fromShape * 2
-    coaddMaskedImage = afwImage.MaskedImageD(coaddShape[0], coaddShape[1])
-    coaddMaskedImage.set((0,0,0))
-    
-    # make tangent-plane projection WCS for the coadd
-    fromCtr = (fromShape - 1) / 2
-    fromCtrPt = afwImage.PointD(*fromCtr)
-    raDecCtr = numpy.array(fromWcs.xyToRaDec(fromCtrPt))
-    coaddDegPerPix = math.sqrt(fromWcs.pixArea(fromCtrPt)) / 2.0
-    
-    coaddMetadata = dafBase.PropertySet()
-    coaddMetadata.add("EPOCH", 2000.0)
-    coaddMetadata.add("EQUINOX", 2000.0)
-    coaddMetadata.add("RADECSYS", "FK5")
-    coaddMetadata.add("CTYPE1", "RA---TAN")
-    coaddMetadata.add("CTYPE2", "DEC--TAN")
-    coaddMetadata.add("CRPIX1", coaddShape[0]/2)
-    coaddMetadata.add("CRPIX2", coaddShape[1]/2)
-    coaddMetadata.add("CRVAL1", raDecCtr[0])
-    coaddMetadata.add("CRVAL2", raDecCtr[1])
-    coaddMetadata.add("CD1_1", coaddDegPerPix)
-    coaddMetadata.add("CD1_2", 0.0)
-    coaddMetadata.add("CD2_1", 0.0)
-    coaddMetadata.add("CD2_2", coaddDegPerPix)
-    coaddWcs = afwImage.Wcs(coaddMetadata)
-    coaddExposure = afwImage.ExposureD(coaddMaskedImage, coaddWcs)
-    return coaddExposure
-
+BackgroundCells = 256
 
 def subtractBackground(maskedImage, doDisplay = False):
     """Subtract the background from a MaskedImage
@@ -99,8 +53,8 @@ def subtractBackground(maskedImage, doDisplay = False):
     if doDisplay:
         ds9.mtv(maskedImage)
     bkgControl = afwMath.BackgroundControl(afwMath.NATURAL_SPLINE)
-    bkgControl.setNxSample(max(2, int(maskedImage.getWidth()/256) + 1))
-    bkgControl.setNySample(max(2, int(maskedImage.getHeight()/256) + 1))
+    bkgControl.setNxSample(int(maskedImage.getWidth() // BackgroundCells) + 1)
+    bkgControl.setNySample(int(maskedImage.getHeight() // BackgroundCells) + 1)
     bkgControl.sctrl.setNumSigmaClip(3)
     bkgControl.sctrl.setNumIter(3)
 
@@ -162,21 +116,24 @@ The policy controlling the parameters is makeBlurredCoadd_policy.paf
     
     indata = sys.argv[2]
     
-    acceptableMask = 0
-    for maskPlaneName in AcceptableMaskPlaneList:
-        acceptableMask |= 1 << afwImage.MaskU.getMaskPlane(maskPlaneName)
-    CoaddMask = 0xFFFF - acceptableMask
-    
 
     saveImages = DefSaveImages # could make this a command-line option
 
     makeBlurredCoaddPolicyPath = DefPolicyPath
     makeBlurredCoaddPolicy = pexPolicy.Policy.createPolicy(makeBlurredCoaddPolicyPath)
     normalizePsf = makeBlurredCoaddPolicy.get("normalizePsf")
+    resolutionFactor = policy.get("resolutionFactor")
+    allowedMaskPlanes = policy.get("allowedMaskPlanes")
     detectSourcesPolicy = makeBlurredCoaddPolicy.getPolicy("detectSourcesPolicy")
     psfPolicy = detectSourcesPolicy.getPolicy("psfPolicy")
     measureSourcesPolicy = makeBlurredCoaddPolicy.getPolicy("measureSourcesPolicy")
     fitPsfPolicy = makeBlurredCoaddPolicy.getPolicy("fitPsfPolicy")
+
+    acceptableMask = 0
+    for maskPlaneName in allowedMaskPlanes:
+        acceptableMask |= 1 << afwImage.MaskU.getMaskPlane(maskPlaneName)
+    coaddMask = 0xFFFF - acceptableMask
+    
 
     # parse indata
     ImageSuffix = "_img.fits"
@@ -226,7 +183,7 @@ which cannot be normalized until ticket 833 is implemented."""
                 psfKernel = afwMath.FixedKernel(psfImage)
             
             if not coaddExposure:
-                coaddExposure = makeBlankTemplateExposure(exposure)
+                coaddExposure = coaddUtils.makeBlankCoadd(exposure, resolutionFactor=resolutionFactor)
                 coaddMaskedImage = coaddExposure.getMaskedImage()
                 coaddWcs = coaddExposure.getWcs()
                 depthMap = afwImage.ImageU(coaddMaskedImage.getDimensions(), 0)
@@ -261,7 +218,8 @@ which cannot be normalized until ticket 833 is implemented."""
             print "  Remapped image has %d good pixels (%0.0f %%)" % (nGoodPix, 100 * nGoodPix / float(nPix))
 
             print "  Add remapped blurred exposure to coadd and save updated coadd exposure"
-            coaddUtils.addToCoadd(coaddMaskedImage, depthMap, remappedBlurredExposure.getMaskedImage(), CoaddMask)
+            coaddUtils.addToCoadd(coaddMaskedImage, depthMap, remappedBlurredExposure.getMaskedImage(),
+                coaddMask)
             coaddExposure.writeFits(outName)
             depthMap.writeFits(depthOutName)
     coaddUtils.setCoaddEdgeBits(coaddMaskedImage.getMask(), depthMap)

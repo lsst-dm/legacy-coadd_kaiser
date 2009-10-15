@@ -1,12 +1,6 @@
-setupRequired(daf_data)
-setupRequired(cfitsio)
-setupRequired(wcslib)
-setupRequired(xpa)
-setupRequired(numpy)
-setupRequired(minuit)
 setupRequired(afw)
 setupRequired(coadd_utils)
-# for examples
+# for examples only
 setupOptional(meas_algorithms)
 
 setupOptional(afwdata)

@@ -1,6 +1,13 @@
 #<? cfg paf policy ?>
 #
 # default policy for makeBlurredCoadd.py example
+
+# resolution of coadd/input images along x and y; larger values produce more pixels in the coadd
+resolutionFactor: 1.0
+
+# pixels with these mask plane bits other than these are omitted from the coadd
+allowedMaskPlanes: "BAD SAT INTRP"
+
 normalizePsf: True
 
 detectSourcesPolicy: {

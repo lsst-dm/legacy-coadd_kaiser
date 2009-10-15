@@ -6,7 +6,7 @@
 #include "lsst/coadd/kaiser.h"
 
 int main(int argc, char **argv) {
-    typedef float pixelType;
+    typedef float Pixel;
     const double DefFwhm = 3.0;
     
     lsst::pex::logging::Trace::setDestination(std::cout);
@@ -26,7 +26,7 @@ int main(int argc, char **argv) {
         }
         
         // read in fits file
-        lsst::afw::image::Exposure<pixelType> scienceExposure(argv[1]);
+        lsst::afw::image::Exposure<Pixel> scienceExposure(argv[1]);
         
         // create psf kernel
         double sigma = fwhm / 2.35;
