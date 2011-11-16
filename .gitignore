@@ -1,0 +1,29 @@
+
+# /
+/.scon*
+/config.log
+/TAGS
+/*.fits
+
+# /doc/
+/doc/htmlDir
+
+# /examples/
+/examples/.tests
+/examples/median
+/examples/coaddComponent
+
+# /lib/
+/lib/*.dylib
+
+# /python/lsst/coadd/kaiser/
+/python/lsst/coadd/kaiser/*_wrap.cc
+/python/lsst/coadd/kaiser/kaiserLib.py
+/python/lsst/coadd/kaiser/*.os
+/python/lsst/coadd/kaiser/*.so
+
+# /src/
+/src/*.os
+
+# /tests/
+/tests/.tests
